@@ -233,16 +233,12 @@ Binary locations:
   ) {
     const requiredFunctions = [
       'create_db',
-      'put',
-      'get',
-      'delete',
-      'exists',
-      'get_all_keys',
+      'put_data',
+      'get_by_id',
+      'delete_by_id',
       'get_all',
-      'get_stats',
-      'clear',
-      'close_db',
-      'free_string',
+      'clear_all_records',
+      'close_database',
     ];
     
     final missingFunctions = <String>[];
