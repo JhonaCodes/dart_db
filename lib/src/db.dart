@@ -174,12 +174,14 @@ class DB {
     
     try {
       final result = _bindings.post(_handle, keyPtr, valuePtr);
+      print('DEBUG: post_data returned: $result (expected ${FfiConstants.success})');
+      print('DEBUG: key=$key, data=$data');
       
       if (result == FfiConstants.success) {
         return Ok(data);
       } else {
         return Err(DbError.database(
-          'Failed to store data',
+          'Failed to store data - FFI returned: $result',
           context: key,
         ));
       }
