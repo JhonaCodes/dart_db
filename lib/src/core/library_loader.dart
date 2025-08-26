@@ -233,6 +233,7 @@ Binary locations:
   ) {
     const requiredFunctions = [
       'create_db',
+      'post_data',
       'put_data',
       'get_by_id',
       'delete_by_id',

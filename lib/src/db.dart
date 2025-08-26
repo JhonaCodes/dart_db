@@ -173,7 +173,7 @@ class DB {
     final valuePtr = FfiUtils.toCString(jsonString);
     
     try {
-      final result = _bindings.put(_handle, keyPtr, valuePtr);
+      final result = _bindings.post(_handle, keyPtr, valuePtr);
       
       if (result == FfiConstants.success) {
         return Ok(data);

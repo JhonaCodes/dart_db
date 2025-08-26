@@ -76,7 +76,8 @@ class DbBindings {
   final CloseDb closeDb;
   final Clear clear;
   final GetStats getStats;
-  final Put put;
+  final Put post;  // post_data function
+  final Put put;   // put_data function  
   final Get get;
   final Delete delete;
   final Exists exists;
@@ -89,6 +90,7 @@ class DbBindings {
     required this.closeDb,
     required this.clear,
     required this.getStats,
+    required this.post,
     required this.put,
     required this.get,
     required this.delete,
@@ -114,6 +116,7 @@ class DbBindings {
     final createDb = lib.lookupFunction<CreateDbNative, CreateDb>('create_db');
     final closeDb = lib.lookupFunction<CloseDbNative, CloseDb>('close_database');
     final clear = lib.lookupFunction<ClearNative, Clear>('clear_all_records');
+    final post = lib.lookupFunction<PutNative, Put>('post_data');
     final put = lib.lookupFunction<PutNative, Put>('put_data');
     final get = lib.lookupFunction<GetNative, Get>('get_by_id');
     final delete = lib.lookupFunction<DeleteNative, Delete>('delete_by_id');
@@ -164,6 +167,7 @@ class DbBindings {
       closeDb: closeDb,
       clear: clear,
       getStats: getStats,
+      post: post,
       put: put,
       get: get,
       delete: delete,
