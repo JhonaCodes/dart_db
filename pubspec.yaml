@@ -1,6 +1,6 @@
 name: dart_db
-description: High-performance embedded key-value database for pure Dart backend applications. Built on LMDB with Rust FFI for persistence.
-version: 0.1.0
+description: High-performance embedded key-value database for Dart server applications. LMDB-powered with Rust FFI backend. Perfect for APIs, microservices, and backend systems.
+version: 0.2.0
 homepage: https://github.com/jhonacodes/dart_db
 repository: https://github.com/jhonacodes/dart_db
 issue_tracker: https://github.com/jhonacodes/dart_db/issues
@@ -10,6 +10,7 @@ environment:
 
 dependencies:
   ffi: ^2.1.0
+  logger_rs: ^1.0.3
   path: ^1.8.3
 
 dev_dependencies:
@@ -22,11 +23,11 @@ platforms:
   windows:
 
 topics:
-  - embedded
-  - key-value
-  - lmdb
+  - server
   - backend
-  - ffi
+  - database
+  - lmdb
+  - api
 
 funding:
   - https://github.com/sponsors/jhonacodes

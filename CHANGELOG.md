@@ -7,8 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-08-27
+
+### 🎉 Major Simplification & Server Focus
+
 ### Added
-- Initial project setup and documentation
+- **📦 Published on pub.dev** - Easy installation with `dart pub add dart_db`
+- **🔧 Simplified JSON handling** - Direct `jsonEncode`/`jsonDecode` approach
+- **📁 Simple path resolution** - Standard system conventions (no complex hardcoded paths)
+- **🖥️ Server-first design** - Explicitly focused on server applications only
+- **⚡ Improved performance** - Streamlined operations and reduced overhead
+
+### Changed
+- **BREAKING**: Simplified API focused on server use cases only
+- **BREAKING**: Removed complex path resolution in favor of standard conventions
+- **BREAKING**: Only functions that exist in Rust backend are exposed
+- Streamlined JSON response parsing
+- Updated documentation with server-focused examples
+- Enhanced error messages for better debugging
+
+### Removed
+- **BREAKING**: Removed `stats()` method (not implemented in Rust backend)
+- **BREAKING**: Removed mobile/Flutter compatibility (server-only now)
+- Complex hardcoded path arrays
+- Redundant JSON parsing layers
+
+### Fixed
+- Path resolution using proper `path` package conventions
+- Corrected FFI bindings to match actual Rust function signatures
+- Simplified database operations for better reliability
+- Fixed `exists()`, `keys()`, and `all()` methods implementation
+
+### Technical Improvements
+- Direct `jsonEncode`/`jsonDecode` instead of complex parsing
+- Simplified `ServerPathHelper` with standard path conventions
+- Fallback implementations for optional Rust functions
+- Better error handling for missing backend functions
 
 ## [0.1.0] - 2025-01-26
 

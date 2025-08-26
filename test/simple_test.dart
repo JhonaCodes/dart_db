@@ -10,14 +10,14 @@ void main() {
     test('should have correct API structure', () {
       // Test that the API exists with correct method signatures
       expect(DB.open, isA<Function>());
-      
+
       // Test with a dummy call - it may fail but we're testing the API exists
       final result = DB.open('test_db');
       expect(result, isA<DbResult>());
-      
+
       if (result.isOk) {
         final db = result.okOrNull!;
-        
+
         // Test that all expected methods exist
         expect(db.post, isA<Function>());
         expect(db.put, isA<Function>());
@@ -29,7 +29,7 @@ void main() {
         expect(db.all, isA<Function>());
         expect(db.clear, isA<Function>());
         expect(db.close, isA<Function>());
-        
+
         db.close();
         print('✅ Native library works - full API available');
       } else {
@@ -37,31 +37,35 @@ void main() {
         print('   Expected on macOS with Linux binary');
       }
     });
-    
+
     test('should find native library files', () {
       // Check Linux binary
-      final linuxPath = '/Volumes/Data/Private/04_Librarys/dart_db/binary/linux/liboffline_first_core.so';
+      final linuxPath =
+          '/Volumes/Data/Private/04_Librarys/dart_db/binary/linux/liboffline_first_core.so';
       final linuxFile = File(linuxPath);
-      
+
       expect(linuxFile.existsSync(), isTrue,
-        reason: 'Linux binary should exist');
+          reason: 'Linux binary should exist');
       expect(linuxFile.lengthSync(), greaterThan(0),
-        reason: 'Linux binary should not be empty');
-        
+          reason: 'Linux binary should not be empty');
+
       // Check macOS binary
-      final macosPath = '/Volumes/Data/Private/04_Librarys/dart_db/binary/macos/liboffline_first_core.dylib';
+      final macosPath =
+          '/Volumes/Data/Private/04_Librarys/dart_db/binary/macos/liboffline_first_core.dylib';
       final macosFile = File(macosPath);
-      
+
       expect(macosFile.existsSync(), isTrue,
-        reason: 'macOS binary should exist');
+          reason: 'macOS binary should exist');
       expect(macosFile.lengthSync(), greaterThan(0),
-        reason: 'macOS binary should not be empty');
-        
+          reason: 'macOS binary should not be empty');
+
       print('✅ Native binaries found:');
-      print('   Linux: ${(linuxFile.lengthSync() / 1024).toStringAsFixed(1)} KB');
-      print('   macOS: ${(macosFile.lengthSync() / 1024).toStringAsFixed(1)} KB');
+      print(
+          '   Linux: ${(linuxFile.lengthSync() / 1024).toStringAsFixed(1)} KB');
+      print(
+          '   macOS: ${(macosFile.lengthSync() / 1024).toStringAsFixed(1)} KB');
     });
-    
+
     test('should have correct error types', () {
       // Test error enums exist
       expect(DbErrorType.values.length, greaterThan(0));
@@ -69,18 +73,18 @@ void main() {
       expect(DbErrorType.notFound, isA<DbErrorType>());
       expect(DbErrorType.validation, isA<DbErrorType>());
       expect(DbErrorType.database, isA<DbErrorType>());
-      
+
       print('✅ Error types defined correctly');
     });
-    
+
     test('should create correct error messages', () {
       final error = DbError.validation('Test validation error');
       expect(error.type, equals(DbErrorType.validation));
       expect(error.message, equals('Test validation error'));
-      
+
       print('✅ Error creation works correctly');
     });
-    
+
     test('should demonstrate expected usage patterns', () {
       print('✅ Expected usage patterns:');
       print('');

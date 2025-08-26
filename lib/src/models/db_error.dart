@@ -24,34 +24,34 @@
 enum DbErrorType {
   /// Database could not be initialized or opened
   initialization,
-  
+
   /// Record with the specified key was not found
   notFound,
-  
+
   /// Input validation failed (invalid key, data, etc.)
   validation,
-  
+
   /// Low-level database operation failed
   database,
-  
+
   /// JSON serialization/deserialization failed
   serialization,
-  
+
   /// FFI operation failed (library loading, function calls)
   ffi,
-  
+
   /// Platform-specific operation failed
   platform,
-  
+
   /// Unknown or unexpected error occurred
   unknown,
 }
 
 /// Comprehensive error class for database operations
-/// 
+///
 /// Provides detailed information about what went wrong and where.
 /// Optimized for backend debugging and logging.
-/// 
+///
 /// Example:
 /// ```dart
 /// if (result.isErr) {
@@ -65,19 +65,19 @@ enum DbErrorType {
 class DbError {
   /// The type of error that occurred
   final DbErrorType type;
-  
+
   /// Human-readable error message
   final String message;
-  
+
   /// Optional context information (key, operation, etc.)
   final String? context;
-  
+
   /// Optional underlying cause (original exception, etc.)
   final dynamic cause;
-  
+
   /// Optional stack trace for debugging
   final StackTrace? stackTrace;
-  
+
   const DbError({
     required this.type,
     required this.message,
@@ -85,7 +85,7 @@ class DbError {
     this.cause,
     this.stackTrace,
   });
-  
+
   /// Creates an initialization error
   factory DbError.initialization(
     String message, {
@@ -101,7 +101,7 @@ class DbError {
       stackTrace: stackTrace,
     );
   }
-  
+
   /// Creates a not found error
   factory DbError.notFound(
     String message, {
@@ -117,7 +117,7 @@ class DbError {
       stackTrace: stackTrace,
     );
   }
-  
+
   /// Creates a validation error
   factory DbError.validation(
     String message, {
@@ -133,7 +133,7 @@ class DbError {
       stackTrace: stackTrace,
     );
   }
-  
+
   /// Creates a database error
   factory DbError.database(
     String message, {
@@ -149,7 +149,7 @@ class DbError {
       stackTrace: stackTrace,
     );
   }
-  
+
   /// Creates a serialization error
   factory DbError.serialization(
     String message, {
@@ -165,7 +165,7 @@ class DbError {
       stackTrace: stackTrace,
     );
   }
-  
+
   /// Creates an FFI error
   factory DbError.ffi(
     String message, {
@@ -181,7 +181,7 @@ class DbError {
       stackTrace: stackTrace,
     );
   }
-  
+
   /// Creates a platform error
   factory DbError.platform(
     String message, {
@@ -197,7 +197,7 @@ class DbError {
       stackTrace: stackTrace,
     );
   }
-  
+
   /// Creates an unknown error
   factory DbError.unknown(
     String message, {
@@ -213,47 +213,47 @@ class DbError {
       stackTrace: stackTrace,
     );
   }
-  
+
   @override
   String toString() {
     final buffer = StringBuffer();
     buffer.write('DbError(${type.name}: $message');
-    
+
     if (context != null) {
       buffer.write(', context: $context');
     }
-    
+
     if (cause != null) {
       buffer.write(', cause: $cause');
     }
-    
+
     buffer.write(')');
     return buffer.toString();
   }
-  
+
   /// Returns a detailed string representation for debugging
   String toDetailedString() {
     final buffer = StringBuffer();
     buffer.writeln('DbError Details:');
     buffer.writeln('  Type: ${type.name}');
     buffer.writeln('  Message: $message');
-    
+
     if (context != null) {
       buffer.writeln('  Context: $context');
     }
-    
+
     if (cause != null) {
       buffer.writeln('  Cause: $cause');
     }
-    
+
     if (stackTrace != null) {
       buffer.writeln('  Stack Trace:');
       buffer.writeln('    ${stackTrace.toString().replaceAll('\n', '\n    ')}');
     }
-    
+
     return buffer.toString();
   }
-  
+
   @override
   bool operator ==(Object other) {
     return other is DbError &&
@@ -262,7 +262,7 @@ class DbError {
         other.context == context &&
         other.cause == cause;
   }
-  
+
   @override
   int get hashCode {
     return Object.hash(type, message, context, cause);
