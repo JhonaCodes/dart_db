@@ -174,14 +174,16 @@ class DB {
     
     try {
       final result = _bindings.post(_handle, keyPtr, valuePtr);
-      print('DEBUG: post_data returned: $result (expected ${FfiConstants.success})');
+      print('DEBUG: post_data returned: $result (expected non-zero for success)');
       print('DEBUG: key=$key, data=$data');
       
-      if (result == FfiConstants.success) {
+      // For flutter_local_db, success is indicated by a non-zero value (valid pointer)
+      // Zero (0) or null pointer indicates failure
+      if (result != 0) {
         return Ok(data);
       } else {
         return Err(DbError.database(
-          'Failed to store data - FFI returned: $result',
+          'Failed to store data - FFI returned null/zero: $result',
           context: key,
         ));
       }
