@@ -28,3 +28,6 @@ export 'src/db.dart';
 // Models
 export 'src/models/db_result.dart';
 export 'src/models/db_error.dart';
+
+// Utilities
+export 'src/utils/server_path_helper.dart';

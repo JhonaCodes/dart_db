@@ -27,6 +27,7 @@ import 'core/ffi_bindings.dart';
 import 'core/library_loader.dart';
 import 'models/db_result.dart';
 import 'models/db_error.dart';
+import 'utils/server_path_helper.dart';
 
 /// High-performance embedded database for Dart backend applications
 /// 
@@ -73,11 +74,12 @@ class DB {
   /// Opens a database with the specified name
   /// 
   /// Creates or opens a database file with the given name. The database
-  /// will be stored in the current working directory unless an absolute
-  /// path is provided.
+  /// will be stored in an appropriate server directory unless an absolute
+  /// path is provided. For server applications, this automatically manages
+  /// directory creation and path resolution.
   /// 
   /// Parameters:
-  /// - [name] - Database name or path (e.g., 'users', './data/cache.db')
+  /// - [name] - Database name or path (e.g., 'users', 'cache.lmdb', '/absolute/path/db.lmdb')
   /// 
   /// Returns:
   /// - [Ok] with [DB] instance on success
@@ -85,12 +87,27 @@ class DB {
   /// 
   /// Example:
   /// ```dart
-  /// final db = DB.open('user_cache').unwrap();
-  /// final analyticsDb = DB.open('./data/analytics.db').unwrap();
+  /// final db = DB.open('user_cache').unwrap();  // Auto-managed path
+  /// final analyticsDb = DB.open('analytics.lmdb').unwrap();  // Custom filename
+  /// final customDb = DB.open('/tmp/custom.lmdb').unwrap();  // Absolute path
   /// ```
   static DbResult<DB, DbError> open(String name) {
     if (name.isEmpty) {
       return Err(DbError.validation('Database name cannot be empty'));
+    }
+    
+    // Resolve database path using ServerPathHelper
+    final pathResult = _resolveDatabasePath(name);
+    if (pathResult.isErr) {
+      return Err(pathResult.errOrNull!);
+    }
+    
+    final dbPath = pathResult.okOrNull!;
+    
+    // Ensure directory exists
+    final dirResult = ServerPathHelper.ensureDirectoryExists(dbPath);
+    if (dirResult.isErr) {
+      return Err(dirResult.errOrNull!);
     }
     
     // Load the native library
@@ -110,8 +127,8 @@ class DB {
     // Create FFI bindings
     final bindings = DbBindings.fromLibrary(library);
     
-    // Create database handle
-    final namePtr = FfiUtils.toCString(name);
+    // Create database handle with resolved path
+    final namePtr = FfiUtils.toCString(dbPath);
     
     try {
       final handle = bindings.createDb(namePtr);
@@ -119,7 +136,7 @@ class DB {
       if (FfiUtils.isNull(handle)) {
         return Err(DbError.initialization(
           'Failed to create database',
-          context: name,
+          context: dbPath,
         ));
       }
       
@@ -128,7 +145,7 @@ class DB {
     } catch (e, stackTrace) {
       return Err(DbError.initialization(
         'Exception during database creation',
-        context: name,
+        context: dbPath,
         cause: e,
         stackTrace: stackTrace,
       ));
@@ -701,5 +718,24 @@ class DB {
         cause: e,
       ));
     }
+  }
+  
+  /// Resolves database path from name using ServerPathHelper
+  static DbResult<String, DbError> _resolveDatabasePath(String name) {
+    // If already an absolute path, validate and return it
+    if (name.startsWith('/') || 
+        name.startsWith('\\') || 
+        (name.length > 1 && name[1] == ':')) {
+      return ServerPathHelper.validatePath(name);
+    }
+    
+    // If it looks like a filename (has extension), use custom path
+    if (name.contains('.')) {
+      return ServerPathHelper.getCustomDatabasePath(name);
+    }
+    
+    // Otherwise, create a database name with .lmdb extension
+    final dbName = name.endsWith('.lmdb') ? name : '$name.lmdb';
+    return ServerPathHelper.getCustomDatabasePath(dbName);
   }
 }
