@@ -205,7 +205,6 @@ class DB {
       Log.d('DEBUG: key=$key, localDbModel=$localDbModel');
 
       if (!FfiUtils.isNull(resultPtr)) {
-
         FfiUtils.freeRustString(resultPtr, _bindings);
 
         // Simple success - return the original data since it was stored successfully
@@ -442,8 +441,8 @@ class DB {
 
       try {
         final responseJson = jsonDecode(responseStr);
-        
-        if (responseJson is Map<String, dynamic> && 
+
+        if (responseJson is Map<String, dynamic> &&
             responseJson['success'] == true) {
           return const Ok(true);
         } else {
@@ -644,20 +643,22 @@ class DB {
       final result = _bindings.clear(_handle);
 
       if (result == nullptr) {
-        return Err(DbError.database('Failed to clear database - null response'));
+        return Err(
+            DbError.database('Failed to clear database - null response'));
       }
 
       final responseStr = FfiUtils.fromCString(result);
       FfiUtils.freeRustString(result, _bindings);
 
       if (responseStr == null) {
-        return Err(DbError.database('Failed to clear database - invalid response'));
+        return Err(
+            DbError.database('Failed to clear database - invalid response'));
       }
 
       try {
         final responseJson = jsonDecode(responseStr);
-        
-        if (responseJson is Map<String, dynamic> && 
+
+        if (responseJson is Map<String, dynamic> &&
             responseJson['success'] == true) {
           return const Ok(true);
         } else {

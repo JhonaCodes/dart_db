@@ -110,7 +110,7 @@ void main() {
       getResult.when(
         ok: (data) {
           expect(data, isA<Map<String, dynamic>>());
-          final retrieved = data as Map<String, dynamic>;
+          final retrieved = data;
           expect(retrieved['name'], equals('Test User'));
           expect(retrieved['age'], equals(25));
           expect(retrieved['active'], equals(true));
