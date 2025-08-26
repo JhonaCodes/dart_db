@@ -121,7 +121,21 @@ Binary locations:
     final currentDir = Directory.current.path;
     final binaryDir = path.join('binary', 'macos');
     
-    return [
+    // Try to find package directory
+    final packagePaths = _getPackageSearchPaths();
+    
+    final paths = <String>[];
+    
+    // Add package-specific paths first (highest priority)
+    for (final packagePath in packagePaths) {
+      paths.addAll([
+        path.join(packagePath, binaryDir, 'liboffline_first_core.dylib'),
+        path.join(packagePath, binaryDir, 'liboffline_first_core_x86_64.dylib'),
+      ]);
+    }
+    
+    // Add current directory paths
+    paths.addAll([
       // Binary directory (package structure) - current and parent directories
       path.join(currentDir, binaryDir, 'liboffline_first_core.dylib'),
       path.join(path.dirname(currentDir), binaryDir, 'liboffline_first_core.dylib'),
@@ -134,7 +148,9 @@ Binary locations:
       // Local development fallbacks
       path.join(currentDir, 'liboffline_first_core.dylib'),
       'liboffline_first_core.dylib',
-    ];
+    ]);
+    
+    return paths;
   }
   
   /// Gets Linux-specific library paths
@@ -142,7 +158,18 @@ Binary locations:
     final currentDir = Directory.current.path;
     final binaryDir = path.join('binary', 'linux');
     
-    return [
+    // Try to find package directory
+    final packagePaths = _getPackageSearchPaths();
+    
+    final paths = <String>[];
+    
+    // Add package-specific paths first (highest priority)
+    for (final packagePath in packagePaths) {
+      paths.add(path.join(packagePath, binaryDir, 'liboffline_first_core.so'));
+    }
+    
+    // Add current directory paths
+    paths.addAll([
       // Binary directory (package structure) - current and parent directories
       path.join(currentDir, binaryDir, 'liboffline_first_core.so'),
       path.join(path.dirname(currentDir), binaryDir, 'liboffline_first_core.so'),
@@ -155,7 +182,9 @@ Binary locations:
       
       // System library locations (let system find)
       'liboffline_first_core.so',
-    ];
+    ]);
+    
+    return paths;
   }
   
   /// Gets Windows-specific library paths
@@ -163,7 +192,18 @@ Binary locations:
     final currentDir = Directory.current.path;
     final binaryDir = path.join('binary', 'windows');
     
-    return [
+    // Try to find package directory
+    final packagePaths = _getPackageSearchPaths();
+    
+    final paths = <String>[];
+    
+    // Add package-specific paths first (highest priority)
+    for (final packagePath in packagePaths) {
+      paths.add(path.join(packagePath, binaryDir, 'liboffline_first_core.dll'));
+    }
+    
+    // Add current directory paths
+    paths.addAll([
       // Binary directory (package structure) - current and parent directories
       path.join(currentDir, binaryDir, 'liboffline_first_core.dll'),
       path.join(path.dirname(currentDir), binaryDir, 'liboffline_first_core.dll'),
@@ -172,7 +212,9 @@ Binary locations:
       // Local development fallbacks
       path.join(currentDir, 'liboffline_first_core.dll'),
       'liboffline_first_core.dll',
-    ];
+    ]);
+    
+    return paths;
   }
   
   /// Validates that a loaded library contains all required functions
@@ -221,6 +263,68 @@ Binary locations:
     }
     
     return Ok(lib);
+  }
+  
+  /// Gets potential package search paths for finding binaries
+  /// 
+  /// Searches common locations where pub caches dart_db package,
+  /// including git repositories and local paths.
+  static List<String> _getPackageSearchPaths() {
+    final paths = <String>[];
+    
+    // Check for .pub-cache git repositories
+    final homeDir = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
+    if (homeDir.isNotEmpty) {
+      final pubCacheGit = path.join(homeDir, '.pub-cache', 'git');
+      final gitDir = Directory(pubCacheGit);
+      
+      if (gitDir.existsSync()) {
+        try {
+          // Look for dart_db-* directories
+          final entries = gitDir.listSync()
+              .whereType<Directory>()
+              .where((dir) => path.basename(dir.path).startsWith('dart_db-'))
+              .toList();
+          
+          for (final entry in entries) {
+            paths.add(entry.path);
+          }
+        } catch (e) {
+          // Ignore errors when scanning .pub-cache
+        }
+      }
+    }
+    
+    // Check relative paths for local development
+    final currentDir = Directory.current.path;
+    final possibleLocalPaths = [
+      '.',
+      '..',
+      '../..',
+      '../../..',
+      '../dart_db',
+      '../../dart_db',
+      '../../../dart_db',
+      '../../../../04_Librarys/dart_db',
+    ];
+    
+    for (final relativePath in possibleLocalPaths) {
+      final fullPath = path.normalize(path.join(currentDir, relativePath));
+      final pubspecFile = File(path.join(fullPath, 'pubspec.yaml'));
+      
+      if (pubspecFile.existsSync()) {
+        try {
+          final content = pubspecFile.readAsStringSync();
+          if (content.contains('name: dart_db')) {
+            paths.add(fullPath);
+          }
+        } catch (e) {
+          // Ignore errors reading pubspec.yaml
+        }
+      }
+    }
+    
+    return paths;
   }
   
   /// Gets information about the current environment for debugging
