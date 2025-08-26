@@ -185,36 +185,58 @@ class DB {
       return Err(validation.errOrNull!);
     }
     
-    final jsonString = _serializeData(data);
-    final keyPtr = FfiUtils.toCString(key);
-    final valuePtr = FfiUtils.toCString(jsonString);
+    // Create the LocalDbModel format that Rust expects
+    final localDbModel = {
+      'id': key,
+      'hash': _generateHash(key, data),
+      'data': data,
+    };
+    
+    final jsonString = jsonEncode(localDbModel);
+    final jsonPtr = FfiUtils.toCString(jsonString);
     
     try {
-      final result = _bindings.post(_handle, keyPtr, valuePtr);
-      print('DEBUG: post_data returned: $result (expected non-zero for success)');
-      print('DEBUG: key=$key, data=$data');
+      // Rust post_data expects only one parameter: the LocalDbModel JSON
+      final resultPtr = _bindings.post(_handle, jsonPtr);
+      print('DEBUG: post_data returned pointer: $resultPtr (null=${resultPtr == nullptr})');
+      print('DEBUG: key=$key, localDbModel=$localDbModel');
       
-      // For flutter_local_db, success is indicated by a non-zero value (valid pointer)
-      // Zero (0) or null pointer indicates failure
-      if (result != 0) {
+      if (!FfiUtils.isNull(resultPtr)) {
+        // Rust returns the stored model as JSON, parse it to extract the data
+        final responseJson = FfiUtils.fromCString(resultPtr);
+        FfiUtils.freeRustString(resultPtr, _bindings);
+        
+        if (responseJson != null) {
+          print('DEBUG: post_data response: $responseJson');
+          // Try to parse the response to get the stored model
+          try {
+            final parsedResponse = jsonDecode(responseJson) as Map<String, dynamic>;
+            if (parsedResponse.containsKey('data')) {
+              return Ok(parsedResponse['data'] as Map<String, dynamic>);
+            }
+            return Ok(data);
+          } catch (e) {
+            print('DEBUG: Failed to parse response JSON: $e');
+            return Ok(data);
+          }
+        }
         return Ok(data);
       } else {
         return Err(DbError.database(
-          'Failed to store data - FFI returned null/zero: $result',
+          'Failed to store data - Rust returned null pointer',
           context: key,
         ));
       }
       
     } catch (e, stackTrace) {
       return Err(DbError.database(
-        'Exception during store operation',
+        'Exception during post operation',
         context: key,
         cause: e,
         stackTrace: stackTrace,
       ));
     } finally {
-      FfiUtils.freeDartString(keyPtr);
-      FfiUtils.freeDartString(valuePtr);
+      FfiUtils.freeDartString(jsonPtr);
     }
   }
   
@@ -332,7 +354,34 @@ class DB {
       }
       
       print('DEBUG: get() - attempting to deserialize JSON: "$jsonString"');
-      return _deserializeData(jsonString);
+      
+      // Parse the Rust response - could be LocalDbModel or error
+      try {
+        final parsedResponse = jsonDecode(jsonString) as Map<String, dynamic>;
+        
+        // Check if it's a LocalDbModel response with 'data' field
+        if (parsedResponse.containsKey('data')) {
+          final dataField = parsedResponse['data'];
+          if (dataField is Map<String, dynamic>) {
+            return Ok(dataField);
+          }
+        }
+        
+        // Check if it's an error response
+        if (parsedResponse.containsKey('NotFound')) {
+          return Err(DbError.notFound('Key not found', context: key));
+        }
+        
+        // Fallback: return the parsed response as-is
+        return Ok(parsedResponse);
+        
+      } catch (e) {
+        return Err(DbError.serialization(
+          'Failed to parse response JSON',
+          context: jsonString,
+          cause: e,
+        ));
+      }
       
     } catch (e, stackTrace) {
       print('DEBUG: get() - exception occurred: $e');
@@ -718,6 +767,12 @@ class DB {
         cause: e,
       ));
     }
+  }
+  
+  /// Generates a hash for the LocalDbModel
+  String _generateHash(String key, Map<String, dynamic> data) {
+    final content = '$key:${jsonEncode(data)}';
+    return content.hashCode.abs().toString();
   }
   
   /// Resolves database path from name using ServerPathHelper

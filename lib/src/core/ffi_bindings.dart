@@ -30,17 +30,21 @@ import 'package:ffi/ffi.dart';
 typedef CreateDbNative = Pointer<Void> Function(Pointer<Utf8> path);
 typedef CreateDb = Pointer<Void> Function(Pointer<Utf8> path);
 
-/// Store key-value pair in database
-typedef PutNative = Int32 Function(Pointer<Void> db, Pointer<Utf8> key, Pointer<Utf8> value);
-typedef Put = int Function(Pointer<Void> db, Pointer<Utf8> key, Pointer<Utf8> value);
+/// Store data in database (expects LocalDbModel JSON)
+typedef PostDataNative = Pointer<Utf8> Function(Pointer<Void> db, Pointer<Utf8> json);
+typedef PostData = Pointer<Utf8> Function(Pointer<Void> db, Pointer<Utf8> json);
+
+/// Update data in database (expects LocalDbModel JSON)
+typedef PutDataNative = Pointer<Utf8> Function(Pointer<Void> db, Pointer<Utf8> json);
+typedef PutData = Pointer<Utf8> Function(Pointer<Void> db, Pointer<Utf8> json);
 
 /// Retrieve value by key from database
 typedef GetNative = Pointer<Utf8> Function(Pointer<Void> db, Pointer<Utf8> key);
 typedef Get = Pointer<Utf8> Function(Pointer<Void> db, Pointer<Utf8> key);
 
 /// Delete record by key from database
-typedef DeleteNative = Int32 Function(Pointer<Void> db, Pointer<Utf8> key);
-typedef Delete = int Function(Pointer<Void> db, Pointer<Utf8> key);
+typedef DeleteNative = Pointer<Utf8> Function(Pointer<Void> db, Pointer<Utf8> key);
+typedef Delete = Pointer<Utf8> Function(Pointer<Void> db, Pointer<Utf8> key);
 
 /// Check if key exists in database
 typedef ExistsNative = Int32 Function(Pointer<Void> db, Pointer<Utf8> key);
@@ -59,8 +63,8 @@ typedef GetStatsNative = Pointer<Utf8> Function(Pointer<Void> db);
 typedef GetStats = Pointer<Utf8> Function(Pointer<Void> db);
 
 /// Clear all data from database
-typedef ClearNative = Int32 Function(Pointer<Void> db);
-typedef Clear = int Function(Pointer<Void> db);
+typedef ClearNative = Pointer<Utf8> Function(Pointer<Void> db);
+typedef Clear = Pointer<Utf8> Function(Pointer<Void> db);
 
 /// Close database and free resources
 typedef CloseDbNative = Void Function(Pointer<Void> db);
@@ -76,8 +80,8 @@ class DbBindings {
   final CloseDb closeDb;
   final Clear clear;
   final GetStats getStats;
-  final Put post;  // post_data function
-  final Put put;   // put_data function  
+  final PostData post;  // post_data function
+  final PutData put;   // put_data function  
   final Get get;
   final Delete delete;
   final Exists exists;
@@ -116,8 +120,8 @@ class DbBindings {
     final createDb = lib.lookupFunction<CreateDbNative, CreateDb>('create_db');
     final closeDb = lib.lookupFunction<CloseDbNative, CloseDb>('close_database');
     final clear = lib.lookupFunction<ClearNative, Clear>('clear_all_records');
-    final post = lib.lookupFunction<PutNative, Put>('post_data');
-    final put = lib.lookupFunction<PutNative, Put>('put_data');
+    final post = lib.lookupFunction<PostDataNative, PostData>('post_data');
+    final put = lib.lookupFunction<PutDataNative, PutData>('put_data');
     final get = lib.lookupFunction<GetNative, Get>('get_by_id');
     final delete = lib.lookupFunction<DeleteNative, Delete>('delete_by_id');
     final getAll = lib.lookupFunction<GetAllNative, GetAll>('get_all');
