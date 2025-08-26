@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:pub.dev)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

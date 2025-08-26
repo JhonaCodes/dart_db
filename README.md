@@ -213,330 +213,112 @@ final isBlocked = await blacklist.exists('user_123');
 
 ## ⚡ Performance
 
-DartDB is built on LMDB, one of the fastest embedded databases available:
+Dart DB is optimized for high-throughput backend applications:
 
-- **Read Performance**: Up to 1M+ reads per second
-- **Write Performance**: Up to 100K+ writes per second  
-- **Memory Efficient**: Uses memory-mapped files
-- **Crash Safe**: ACID transactions ensure data integrity
-- **Concurrent Access**: Multiple readers, single writer
+- **Direct FFI**: No overhead from Dart-native bridge
+- **LMDB Backend**: Memory-mapped storage for maximum speed
+- **Linux Optimized**: Built specifically for server environments
+- **Minimal Allocations**: Efficient memory usage patterns
 
-### Benchmarks
+## 📦 Native Library Included
 
-```
-Operation    | Operations/sec | Latency (avg)
--------------|----------------|-------------
-GET          | 1,200,000      | 0.8μs
-SET          | 150,000        | 6.7μs
-DELETE       | 180,000        | 5.6μs
-BATCH SET    | 300,000        | 3.3μs
-TRANSACTION  | 80,000         | 12.5μs
-```
+✅ **Ready to use!** The dart_db package includes the pre-compiled Linux binary:
 
-## 🔧 Configuration
+- **Location**: `lib/liboffline_first_core.so` 
+- **Target**: Linux x86_64 servers and containers
+- **Auto-discovery**: Library loader automatically finds the binary
+- **No manual setup**: Just add the dependency and start coding!
 
-### Database Options
+## 🗂️ Error Handling
+
+Dart DB uses a comprehensive Result<T,E> pattern:
 
 ```dart
-final options = DatabaseOptions(
-  // Maximum database size (default: 100MB)
-  maxSize: 1024 * 1024 * 500, // 500MB
-  
-  // Open database in read-only mode
-  readOnly: false,
-  
-  // Create database if it doesn't exist
-  createIfNotExists: true,
-  
-  // Number of readers allowed
-  maxReaders: 126,
-  
-  // Sync mode for durability
-  syncMode: SyncMode.full, // full, lazy, none
-  
-  // Compression settings
-  compression: CompressionOptions(
-    enabled: true,
-    algorithm: CompressionAlgorithm.lz4,
-    level: 1,
-  ),
+final result = await db.get('key');
+
+// Pattern matching
+result.when(
+  ok: (data) {
+    // Handle success
+    print('Data: $data');
+  },
+  err: (error) {
+    // Handle specific errors
+    switch (error.type) {
+      case DbErrorType.notFound:
+        print('Key not found');
+        break;
+      case DbErrorType.database:
+        print('Database error: ${error.message}');
+        break;
+      default:
+        print('Unexpected error: ${error}');
+    }
+  },
 );
 
-final db = await DartDB.open('database', options: options);
+// Or check directly
+if (result.isOk) {
+  final data = result.okOrNull!;
+  // Use data
+}
 ```
 
-### Environment Variables
+## 📋 System Requirements
+
+- **OS**: Linux (64-bit)
+- **Dart**: 2.17+
+- **Runtime**: Pure Dart backend applications only
+- **Dependencies**: Native LMDB library - **INCLUDED!** ✅
+
+## 🚀 Deployment
+
+### Development
+
+No setup required! The library includes the binary:
 
 ```bash
-# Default database directory
-export DART_DB_PATH=/var/lib/dart_db
+# Your project structure
+my_backend/
+├── bin/
+│   └── server.dart
+├── pubspec.yaml
+└── .packages  # dart_db includes lib/liboffline_first_core.so
 
-# Default maximum size
-export DART_DB_MAX_SIZE=104857600
-
-# Log level
-export DART_DB_LOG_LEVEL=info
+# Just run your app - library auto-loads!
+dart run bin/server.dart
 ```
 
-## 🏗️ Architecture
+### Production
 
-DartDB uses a layered architecture:
+#### Docker (Recommended)
 
-```
-┌─────────────────┐
-│   Dart API      │  ← High-level Dart interface
-├─────────────────┤
-│   FFI Bridge    │  ← Dart ↔ Rust communication
-├─────────────────┤
-│   Rust Core     │  ← Core database logic
-├─────────────────┤
-│   LMDB Engine   │  ← Lightning Memory-Mapped DB
-└─────────────────┘
-```
+```dockerfile
+FROM dart:stable
 
-### Components
+# Copy your application
+COPY . /app
+WORKDIR /app
 
-- **Dart API**: High-level, type-safe interface for Dart applications
-- **FFI Bridge**: Efficient communication layer between Dart and Rust
-- **Rust Core**: Core database operations, serialization, and error handling
-- **LMDB Engine**: Battle-tested, high-performance storage engine
+# Install dependencies (includes native binary)
+RUN dart pub get
+RUN dart compile exe bin/server.dart -o server
 
-## 📚 Examples
-
-### Web API Cache
-
-```dart
-import 'package:dart_db/dart_db.dart';
-
-class ApiCache {
-  late DartDB _db;
-  
-  Future<void> init() async {
-    _db = await DartDB.open('api_cache');
-  }
-  
-  Future<Map<String, dynamic>?> getCachedResponse(String endpoint) async {
-    return await _db.get<Map<String, dynamic>>(endpoint);
-  }
-  
-  Future<void> cacheResponse(
-    String endpoint, 
-    Map<String, dynamic> response,
-    {Duration? ttl}
-  ) async {
-    if (ttl != null) {
-      await _db.setWithTTL(endpoint, response, ttl);
-    } else {
-      await _db.set(endpoint, response);
-    }
-  }
-}
+# Run your backend
+CMD ["./server"]
 ```
 
-### Session Store
-
-```dart
-import 'package:dart_db/dart_db.dart';
-
-class SessionStore {
-  late DartDB _db;
-  
-  Future<void> init() async {
-    _db = await DartDB.open('sessions');
-  }
-  
-  Future<void> createSession(String sessionId, Map<String, dynamic> data) async {
-    await _db.setWithTTL(
-      'session:$sessionId',
-      {
-        ...data,
-        'created': DateTime.now().toIso8601String(),
-        'lastAccessed': DateTime.now().toIso8601String(),
-      },
-      Duration(hours: 24),
-    );
-  }
-  
-  Future<Map<String, dynamic>?> getSession(String sessionId) async {
-    final session = await _db.get<Map<String, dynamic>>('session:$sessionId');
-    if (session != null) {
-      // Update last accessed time
-      session['lastAccessed'] = DateTime.now().toIso8601String();
-      await _db.setWithTTL('session:$sessionId', session, Duration(hours: 24));
-    }
-    return session;
-  }
-  
-  Future<void> destroySession(String sessionId) async {
-    await _db.delete('session:$sessionId');
-  }
-}
-```
-
-### Configuration Manager
-
-```dart
-import 'package:dart_db/dart_db.dart';
-
-class ConfigManager {
-  late DartDB _db;
-  
-  Future<void> init() async {
-    _db = await DartDB.open('app_config');
-  }
-  
-  Future<T?> getConfig<T>(String key, {T? defaultValue}) async {
-    return await _db.get<T>(key, defaultValue: defaultValue);
-  }
-  
-  Future<void> setConfig<T>(String key, T value) async {
-    await _db.set(key, value);
-  }
-  
-  Future<Map<String, dynamic>> getAllConfig() async {
-    final keys = await _db.keys();
-    final configs = <String, dynamic>{};
-    
-    for (final key in keys) {
-      configs[key] = await _db.get(key);
-    }
-    
-    return configs;
-  }
-}
-```
-
-## 🧪 Testing
-
-```dart
-import 'package:test/test.dart';
-import 'package:dart_db/dart_db.dart';
-
-void main() {
-  group('DartDB Tests', () {
-    late DartDB db;
-    
-    setUp(() async {
-      // Use in-memory database for testing
-      db = await DartDB.open(':memory:');
-    });
-    
-    tearDown(() async {
-      await db.close();
-    });
-    
-    test('should store and retrieve values', () async {
-      await db.set('test_key', 'test_value');
-      final value = await db.get('test_key');
-      expect(value, equals('test_value'));
-    });
-    
-    test('should handle complex objects', () async {
-      final complexObject = {
-        'id': 123,
-        'name': 'Test User',
-        'preferences': ['dark_mode', 'notifications'],
-      };
-      
-      await db.set('user', complexObject);
-      final retrieved = await db.get<Map>('user');
-      expect(retrieved, equals(complexObject));
-    });
-  });
-}
-```
-
-## 🔍 Troubleshooting
-
-### Common Issues
-
-**Database won't open**
-```
-Error: Failed to open database
-```
-- Check file permissions on the database directory
-- Ensure sufficient disk space
-- Verify the database path is valid
-
-**Out of memory errors**
-```
-Error: Out of memory
-```
-- Increase `maxSize` in `DatabaseOptions`
-- Check available system memory
-- Consider using compression
-
-**Performance issues**
-```
-Slow read/write operations
-```
-- Use batch operations for multiple keys
-- Enable compression for large values
-- Consider using transactions for related operations
-
-### Debug Mode
-
-Enable debug logging:
-
-```dart
-DartDB.setLogLevel(LogLevel.debug);
-```
-
-### Memory Usage
-
-Monitor memory usage:
-
-```dart
-final stats = await db.stats();
-print('Memory usage: ${stats.memoryUsage} bytes');
-print('Disk usage: ${stats.diskUsage} bytes');
-```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
-
-### Development Setup
-
-1. Clone the repository
-2. Install Rust (for FFI compilation)
-3. Run `dart pub get`
-4. Run tests with `dart test`
-
-### Building
+#### Linux Server
 
 ```bash
-# Build Rust FFI library
-cargo build --release
+# The binary is included with the package
+dart pub get
+dart compile exe bin/server.dart -o server
+./server
 
-# Run Dart tests
-dart test
-
-# Format code
-dart format .
-
-# Analyze code
-dart analyze
+# Or for development
+dart run bin/server.dart
 ```
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🔗 Links
-
-- [Documentation](https://pub.dev/documentation/dart_db/latest/)
-- [GitHub Repository](https://github.com/jhonacodes/dart_db)
-- [Issue Tracker](https://github.com/jhonacodes/dart_db/issues)
-- [Pub.dev Package](https://pub.dev/packages/dart_db)
-
-## 🙏 Acknowledgments
-
-- [LMDB](https://symas.com/lmdb/) - Lightning Memory-Mapped Database
-- [Dart FFI](https://dart.dev/guides/libraries/c-interop) - Foreign Function Interface
-- [Rust](https://www.rust-lang.org/) - Systems programming language
-
----
 
 ## 🤝 Contributing
 
@@ -555,4 +337,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 Built with ❤️ for the Dart backend community
-# dart_db
