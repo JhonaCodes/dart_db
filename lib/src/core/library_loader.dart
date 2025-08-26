@@ -23,6 +23,7 @@
 
 import 'dart:ffi';
 import 'dart:io';
+import 'package:path/path.dart' as path;
 import '../models/db_result.dart';
 import '../models/db_error.dart';
 
@@ -49,22 +50,9 @@ class LibraryLoader {
   /// );
   /// ```
   static DbResult<DynamicLibrary, DbError> loadLibrary() {
-    // Library search paths in order of preference for backend deployment
-    final libraryPaths = [
-      // Local development (same directory as executable)
-      './liboffline_first_core.so',
-      
-      // Local lib directory
-      './lib/liboffline_first_core.so',
-      
-      // Relative to project root
-      '../lib/liboffline_first_core.so',
-      'lib/liboffline_first_core.so',
-      
-      // Linux server common locations (let system find)
-      'liboffline_first_core.so',
-    ];
-    
+    // Detect platform and get appropriate library paths
+    final platform = Platform.operatingSystem;
+    final libraryPaths = _getPlatformSpecificPaths(platform);
     final attemptedPaths = <String>[];
     
     for (final libPath in libraryPaths) {
@@ -90,26 +78,101 @@ class LibraryLoader {
     
     // If we get here, no library was found
     final errorMessage = '''
-Failed to load LMDB native library for Linux backend.
+Failed to load native library for $platform.
 
 Attempted paths:
 ${attemptedPaths.map((path) => '  - $path').join('\n')}
 
 Solutions:
-1. Place liboffline_first_core.so in your application directory
-2. Add library path to LD_LIBRARY_PATH environment variable
-3. Install library system-wide (consult your Linux distribution docs)
-4. Use Docker with the library included in container
+1. Ensure the correct binary is in your application directory
+2. For macOS: Use the .dylib binary in binary/macos/
+3. For Linux: Use the .so binary in binary/linux/
+4. Set library path environment variable (LD_LIBRARY_PATH on Linux, DYLD_LIBRARY_PATH on macOS)
 
-For development: Place liboffline_first_core.so in the same directory as your Dart executable.
-For production: Use Docker or install system-wide according to your deployment strategy.
+Binary locations:
+- macOS: binary/macos/liboffline_first_core.dylib
+- Linux: binary/linux/liboffline_first_core.so
+- Windows: binary/windows/liboffline_first_core.dll (future)
 ''';
     
     return Err(DbError.ffi(
       'Failed to load native library',
-      context: 'Linux library loading',
+      context: '$platform library loading',
       cause: errorMessage,
     ));
+  }
+  
+  /// Gets platform-specific library search paths
+  static List<String> _getPlatformSpecificPaths(String platform) {
+    switch (platform.toLowerCase()) {
+      case 'macos':
+        return _getMacOSPaths();
+      case 'linux':
+        return _getLinuxPaths();
+      case 'windows':
+        return _getWindowsPaths();
+      default:
+        return _getLinuxPaths(); // Default to Linux
+    }
+  }
+  
+  /// Gets macOS-specific library paths
+  static List<String> _getMacOSPaths() {
+    final currentDir = Directory.current.path;
+    final binaryDir = path.join('binary', 'macos');
+    
+    return [
+      // Binary directory (package structure) - current and parent directories
+      path.join(currentDir, binaryDir, 'liboffline_first_core.dylib'),
+      path.join(path.dirname(currentDir), binaryDir, 'liboffline_first_core.dylib'),
+      path.join(path.dirname(path.dirname(currentDir)), binaryDir, 'liboffline_first_core.dylib'),
+      
+      // Architecture-specific paths
+      path.join(currentDir, binaryDir, 'liboffline_first_core_x86_64.dylib'),
+      path.join(path.dirname(currentDir), binaryDir, 'liboffline_first_core_x86_64.dylib'),
+      
+      // Local development fallbacks
+      path.join(currentDir, 'liboffline_first_core.dylib'),
+      'liboffline_first_core.dylib',
+    ];
+  }
+  
+  /// Gets Linux-specific library paths
+  static List<String> _getLinuxPaths() {
+    final currentDir = Directory.current.path;
+    final binaryDir = path.join('binary', 'linux');
+    
+    return [
+      // Binary directory (package structure) - current and parent directories
+      path.join(currentDir, binaryDir, 'liboffline_first_core.so'),
+      path.join(path.dirname(currentDir), binaryDir, 'liboffline_first_core.so'),
+      path.join(path.dirname(path.dirname(currentDir)), binaryDir, 'liboffline_first_core.so'),
+      
+      // Local development fallbacks
+      path.join(currentDir, 'liboffline_first_core.so'),
+      path.join(currentDir, 'lib', 'liboffline_first_core.so'),
+      path.join('lib', 'liboffline_first_core.so'),
+      
+      // System library locations (let system find)
+      'liboffline_first_core.so',
+    ];
+  }
+  
+  /// Gets Windows-specific library paths
+  static List<String> _getWindowsPaths() {
+    final currentDir = Directory.current.path;
+    final binaryDir = path.join('binary', 'windows');
+    
+    return [
+      // Binary directory (package structure) - current and parent directories
+      path.join(currentDir, binaryDir, 'liboffline_first_core.dll'),
+      path.join(path.dirname(currentDir), binaryDir, 'liboffline_first_core.dll'),
+      path.join(path.dirname(path.dirname(currentDir)), binaryDir, 'liboffline_first_core.dll'),
+      
+      // Local development fallbacks
+      path.join(currentDir, 'liboffline_first_core.dll'),
+      'liboffline_first_core.dll',
+    ];
   }
   
   /// Validates that a loaded library contains all required functions

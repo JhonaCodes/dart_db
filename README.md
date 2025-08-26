@@ -57,33 +57,45 @@ void main() async {
   final db = result.okOrNull!;
   
   try {
-    // Store data
-    await db.put('user_123', {
+    // Store data (returns the stored data)
+    final storeResult = db.post('user_123', {
       'name': 'John Doe',
       'email': 'john@example.com',
       'role': 'admin'
     });
     
+    storeResult.when(
+      ok: (storedData) => print('Stored: ${storedData['name']}'),
+      err: (error) => print('Error: $error'),
+    );
+    
     // Retrieve data
-    final userData = await db.get('user_123');
+    final userData = db.get('user_123');
     userData.when(
-      ok: (data) => print('User: ${data?['name']}'),
+      ok: (data) => print('User: ${data['name']}'),
+      err: (error) => print('Error: $error'),
+    );
+    
+    // Partial update (patch)
+    final updateResult = db.patch('user_123', {'role': 'super_admin'});
+    updateResult.when(
+      ok: (updatedData) => print('Updated: ${updatedData}'),
       err: (error) => print('Error: $error'),
     );
     
     // Check existence
-    final exists = await db.exists('user_123');
+    final exists = db.exists('user_123');
     print('User exists: ${exists.okOrNull ?? false}');
     
     // List all keys
-    final keys = await db.keys();
+    final keys = db.keys();
     keys.when(
       ok: (keyList) => print('Keys: $keyList'),
       err: (error) => print('Error: $error'),
     );
     
   } finally {
-    await db.close();
+    db.close();
   }
 }
 ```

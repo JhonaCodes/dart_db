@@ -147,18 +147,18 @@ class DB {
   /// - [data] - JSON-serializable data to store
   /// 
   /// Returns:
-  /// - [Ok] with void on success
+  /// - [Ok] with the stored data on success
   /// - [Err] with detailed error information on failure
   /// 
   /// Example:
   /// ```dart
-  /// await db.post('user_123', {
+  /// final result = db.post('user_123', {
   ///   'name': 'John Doe',
   ///   'email': 'john@example.com',
   ///   'settings': {'theme': 'dark'},
   /// });
   /// ```
-  DbResult<void, DbError> post(String key, Map<String, dynamic> data) {
+  DbResult<Map<String, dynamic>, DbError> post(String key, Map<String, dynamic> data) {
     if (_closed) {
       return Err(DbError.database('Database is closed'));
     }
@@ -176,7 +176,7 @@ class DB {
       final result = _bindings.put(_handle, keyPtr, valuePtr);
       
       if (result == FfiConstants.success) {
-        return const Ok(null);
+        return Ok(data);
       } else {
         return Err(DbError.database(
           'Failed to store data',
@@ -207,10 +207,53 @@ class DB {
   /// - [data] - New data to store
   /// 
   /// Returns:
-  /// - [Ok] with void on success
+  /// - [Ok] with the stored data on success
   /// - [Err] with detailed error information on failure
-  DbResult<void, DbError> put(String key, Map<String, dynamic> data) {
+  DbResult<Map<String, dynamic>, DbError> put(String key, Map<String, dynamic> data) {
     return post(key, data);
+  }
+  
+  /// Partially updates existing data (merges with existing data)
+  /// 
+  /// Updates only the specified fields in an existing record, leaving other
+  /// fields unchanged. If the key doesn't exist, this operation will fail.
+  /// 
+  /// Parameters:
+  /// - [key] - Key to update
+  /// - [data] - Partial data to merge with existing data
+  /// 
+  /// Returns:
+  /// - [Ok] with the merged data on success
+  /// - [Err] with detailed error information on failure
+  /// 
+  /// Example:
+  /// ```dart
+  /// // First, store a user
+  /// db.post('user_123', {'name': 'John', 'age': 30, 'city': 'NY'});
+  /// 
+  /// // Then update only age and city
+  /// final result = db.patch('user_123', {'age': 31, 'city': 'LA'});
+  /// // Result: {'name': 'John', 'age': 31, 'city': 'LA'}
+  /// ```
+  DbResult<Map<String, dynamic>, DbError> patch(String key, Map<String, dynamic> data) {
+    if (_closed) {
+      return Err(DbError.database('Database is closed'));
+    }
+    
+    // First, get existing data
+    final existingResult = get(key);
+    if (existingResult.isErr) {
+      return Err(existingResult.errOrNull!);
+    }
+    
+    final existingData = existingResult.okOrNull!;
+    
+    // Merge with new data (new data overwrites existing fields)
+    final mergedData = Map<String, dynamic>.from(existingData);
+    mergedData.addAll(data);
+    
+    // Store the merged data
+    return post(key, mergedData);
   }
   
   /// Retrieves data by key
@@ -296,7 +339,7 @@ class DB {
   ///   err: (error) => print('Delete failed: $error'),
   /// );
   /// ```
-  DbResult<void, DbError> delete(String key) {
+  DbResult<bool, DbError> delete(String key) {
     if (_closed) {
       return Err(DbError.database('Database is closed'));
     }
@@ -312,7 +355,7 @@ class DB {
       final result = _bindings.delete(_handle, keyPtr);
       
       if (result == FfiConstants.success) {
-        return const Ok(null);
+        return const Ok(true);
       } else {
         return Err(DbError.database(
           'Failed to delete data',
@@ -516,7 +559,7 @@ class DB {
   ///   err: (error) => print('Clear failed: $error'),
   /// );
   /// ```
-  DbResult<void, DbError> clear() {
+  DbResult<bool, DbError> clear() {
     if (_closed) {
       return Err(DbError.database('Database is closed'));
     }
@@ -525,7 +568,7 @@ class DB {
       final result = _bindings.clear(_handle);
       
       if (result == FfiConstants.success) {
-        return const Ok(null);
+        return const Ok(true);
       } else {
         return Err(DbError.database('Failed to clear database'));
       }
