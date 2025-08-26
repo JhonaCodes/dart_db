@@ -211,9 +211,21 @@ class DB {
           // Try to parse the response to get the stored model
           try {
             final parsedResponse = jsonDecode(responseJson) as Map<String, dynamic>;
-            if (parsedResponse.containsKey('data')) {
-              return Ok(parsedResponse['data'] as Map<String, dynamic>);
+            
+            // Check if it's wrapped in AppResponse::Ok
+            if (parsedResponse.containsKey('Ok')) {
+              final innerJson = parsedResponse['Ok'] as String;
+              final localDbModel = jsonDecode(innerJson) as Map<String, dynamic>;
+              
+              // Extract the 'data' field from LocalDbModel
+              if (localDbModel.containsKey('data')) {
+                final dataField = localDbModel['data'];
+                if (dataField is Map<String, dynamic>) {
+                  return Ok(dataField);
+                }
+              }
             }
+            
             return Ok(data);
           } catch (e) {
             print('DEBUG: Failed to parse response JSON: $e');
@@ -355,21 +367,36 @@ class DB {
       
       print('DEBUG: get() - attempting to deserialize JSON: "$jsonString"');
       
-      // Parse the Rust response - could be LocalDbModel or error
+      // Parse the Rust response - it's wrapped in AppResponse format
       try {
         final parsedResponse = jsonDecode(jsonString) as Map<String, dynamic>;
         
-        // Check if it's a LocalDbModel response with 'data' field
-        if (parsedResponse.containsKey('data')) {
-          final dataField = parsedResponse['data'];
-          if (dataField is Map<String, dynamic>) {
-            return Ok(dataField);
+        // Check if it's a successful response wrapped in AppResponse::Ok
+        if (parsedResponse.containsKey('Ok')) {
+          final innerJson = parsedResponse['Ok'] as String;
+          final localDbModel = jsonDecode(innerJson) as Map<String, dynamic>;
+          
+          // Extract the 'data' field from LocalDbModel
+          if (localDbModel.containsKey('data')) {
+            final dataField = localDbModel['data'];
+            if (dataField is Map<String, dynamic>) {
+              return Ok(dataField);
+            }
           }
         }
         
         // Check if it's an error response
         if (parsedResponse.containsKey('NotFound')) {
           return Err(DbError.notFound('Key not found', context: key));
+        }
+        
+        // Check other error types
+        if (parsedResponse.containsKey('BadRequest')) {
+          return Err(DbError.validation(parsedResponse['BadRequest'] as String, context: key));
+        }
+        
+        if (parsedResponse.containsKey('SerializationError')) {
+          return Err(DbError.serialization(parsedResponse['SerializationError'] as String, context: key));
         }
         
         // Fallback: return the parsed response as-is
