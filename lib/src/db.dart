@@ -293,25 +293,32 @@ class DB {
     final keyPtr = FfiUtils.toCString(key);
     
     try {
+      print('DEBUG: get() - calling _bindings.get() for key: $key');
       final resultPtr = _bindings.get(_handle, keyPtr);
+      print('DEBUG: get() - get_by_id returned pointer: $resultPtr (null=${resultPtr == nullptr})');
       
       if (FfiUtils.isNull(resultPtr)) {
+        print('DEBUG: get() - pointer is null, returning not found');
         return Err(DbError.notFound('Key not found', context: key));
       }
       
       final jsonString = FfiUtils.fromCString(resultPtr);
+      print('DEBUG: get() - extracted JSON string: "$jsonString"');
       FfiUtils.freeRustString(resultPtr, _bindings);
       
       if (jsonString == null) {
+        print('DEBUG: get() - JSON string is null after conversion');
         return Err(DbError.serialization(
           'Received null JSON string',
           context: key,
         ));
       }
       
+      print('DEBUG: get() - attempting to deserialize JSON: "$jsonString"');
       return _deserializeData(jsonString);
       
     } catch (e, stackTrace) {
+      print('DEBUG: get() - exception occurred: $e');
       return Err(DbError.database(
         'Exception during get operation',
         context: key,
@@ -448,24 +455,32 @@ class DB {
     }
     
     try {
+      print('DEBUG: keys() - calling _bindings.getAllKeys()');
       final resultPtr = _bindings.getAllKeys(_handle);
+      print('DEBUG: keys() - getAllKeys returned pointer: $resultPtr (null=${resultPtr == nullptr})');
       
       if (FfiUtils.isNull(resultPtr)) {
+        print('DEBUG: keys() - pointer is null, returning empty list');
         return const Ok([]);
       }
       
       final jsonString = FfiUtils.fromCString(resultPtr);
+      print('DEBUG: keys() - extracted JSON string: "$jsonString"');
       FfiUtils.freeRustString(resultPtr, _bindings);
       
       if (jsonString == null) {
+        print('DEBUG: keys() - JSON string is null after conversion');
         return Err(DbError.serialization('Received null JSON for keys'));
       }
       
       try {
+        print('DEBUG: keys() - attempting to decode JSON list');
         final jsonList = jsonDecode(jsonString) as List<dynamic>;
         final keys = jsonList.cast<String>();
+        print('DEBUG: keys() - successfully decoded ${keys.length} keys: $keys');
         return Ok(keys);
       } catch (e) {
+        print('DEBUG: keys() - failed to decode JSON: $e');
         return Err(DbError.serialization(
           'Failed to decode keys JSON',
           cause: e,
@@ -473,6 +488,7 @@ class DB {
       }
       
     } catch (e, stackTrace) {
+      print('DEBUG: keys() - exception occurred: $e');
       return Err(DbError.database(
         'Exception during keys operation',
         cause: e,
@@ -506,20 +522,26 @@ class DB {
     }
     
     try {
+      print('DEBUG: all() - calling _bindings.getAll()');
       final resultPtr = _bindings.getAll(_handle);
+      print('DEBUG: all() - getAll returned pointer: $resultPtr (null=${resultPtr == nullptr})');
       
       if (FfiUtils.isNull(resultPtr)) {
+        print('DEBUG: all() - pointer is null, returning empty map');
         return const Ok({});
       }
       
       final jsonString = FfiUtils.fromCString(resultPtr);
+      print('DEBUG: all() - extracted JSON string: "$jsonString"');
       FfiUtils.freeRustString(resultPtr, _bindings);
       
       if (jsonString == null) {
+        print('DEBUG: all() - JSON string is null after conversion');
         return Err(DbError.serialization('Received null JSON for all data'));
       }
       
       try {
+        print('DEBUG: all() - attempting to decode JSON map');
         final jsonMap = jsonDecode(jsonString) as Map<String, dynamic>;
         final result = <String, Map<String, dynamic>>{};
         
@@ -529,8 +551,10 @@ class DB {
           }
         }
         
+        print('DEBUG: all() - successfully decoded ${result.length} records');
         return Ok(result);
       } catch (e) {
+        print('DEBUG: all() - failed to decode JSON: $e');
         return Err(DbError.serialization(
           'Failed to decode all data JSON',
           cause: e,
@@ -538,6 +562,7 @@ class DB {
       }
       
     } catch (e, stackTrace) {
+      print('DEBUG: all() - exception occurred: $e');
       return Err(DbError.database(
         'Exception during all operation',
         cause: e,
