@@ -9,21 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **🔍 Automatic library detection via `package_config.json`**: Zero-configuration setup - the library loader now automatically reads `.dart_tool/package_config.json` to find the exact location of the dart_db package
+- **📊 Comprehensive logging**: Added detailed logging throughout the library loading process using `Log.d()`, `Log.i()`, `Log.w()`, and `Log.e()` for better debugging visibility
 - **🛠️ Diagnostic tool (`LibraryLoader.printDebugInfo()`)**: New debugging utility that provides detailed information about library search paths, system configuration, and actionable troubleshooting recommendations
 - **📋 Debug example (`example/debug.dart`)**: Interactive diagnostic tool that helps users troubleshoot library loading issues
+- **🩺 Linux diagnostic script (`scripts/diagnose_linux.sh`)**: Comprehensive shell script that checks file permissions, verifies dependencies with `ldd`, tests library loading, and provides platform-specific fix commands
 - **⚙️ Installation script (`scripts/install_linux.sh`)**: Automated installer for manual system-level installation as a fallback option
 - **📚 Comprehensive troubleshooting guide (`TROUBLESHOOTING.md`)**: Detailed documentation covering library loading issues and solutions
 
 ### Changed
 - **Enhanced library search algorithm**: Now prioritizes `package_config.json` for the most reliable package location detection
-- **Improved error messages**: Library loading errors now include helpful context-aware suggestions and links to documentation
+- **Improved error messages**: Library loading errors now include:
+  - The actual error from `DynamicLibrary.open()` for better debugging
+  - Helpful context-aware suggestions based on whether file exists but can't load vs. file not found
+  - Direct links to diagnostic tools and documentation
+  - Step-by-step troubleshooting commands
 - **Better search coverage**: Enhanced search paths to support git repositories, pub.dev hosted packages, and local development paths
-- **README updated**: Added section on automatic library detection and diagnostic tools
+- **Verbose logging**: All library loading steps are now logged to help identify issues in real-time
+- **README updated**: Added section on automatic library detection, diagnostic tools, and quick fixes
 
 ### Fixed
 - **Library loading on Linux servers**: Automatic detection now correctly resolves the package root path from `package_config.json`, handling both absolute and relative URI formats
 - **Package path resolution**: Fixed issue where library couldn't be found when dart_db was used as a dependency in other projects
 - **Support for various installation methods**: Now correctly handles packages installed via git, pub.dev, and local paths
+- **Error diagnosis**: Now captures and displays the actual loading error instead of silently continuing, making it easier to identify missing dependencies or permission issues
 
 ## [0.2.0] - 2025-08-27
 

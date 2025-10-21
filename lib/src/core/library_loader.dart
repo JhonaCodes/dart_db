@@ -25,6 +25,7 @@ import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
 import 'package:path/path.dart' as path;
+import 'package:logger_rs/logger_rs.dart';
 import '../models/db_result.dart';
 import '../models/db_error.dart';
 
@@ -52,6 +53,7 @@ class LibraryLoader {
   /// ```
   static DbResult<DynamicLibrary, DbError> loadLibrary() {
     final platform = Platform.operatingSystem;
+    Log.i('LibraryLoader: Attempting to load native library for $platform');
 
     // Priority loading for Linux and macOS
     if (platform == 'linux' || platform == 'macos') {
@@ -64,10 +66,15 @@ class LibraryLoader {
 
   /// Optimized loading for Unix systems (Linux & macOS)
   static DbResult<DynamicLibrary, DbError> _loadUnixLibrary(String platform) {
+    Log.d('LibraryLoader: Starting Unix library loading for $platform');
+
     final libraryPaths =
         platform == 'linux' ? _getLinuxServerPaths() : _getMacOSServerPaths();
     final attemptedPaths = <String>[];
     final existingPaths = <String>[];
+    final loadErrors = <String, dynamic>{};
+
+    Log.d('LibraryLoader: Will search ${libraryPaths.length} paths');
 
     for (final libPath in libraryPaths) {
       attemptedPaths.add(libPath);
@@ -79,29 +86,87 @@ class LibraryLoader {
           if (!file.existsSync()) {
             continue;
           }
+
+          Log.i('LibraryLoader: Found library file at: $libPath');
           existingPaths.add(libPath);
+
+          // Try to get file info for logging
+          try {
+            final stat = file.statSync();
+            final size = stat.size;
+            final perms = stat.modeString();
+            Log.d(
+                'LibraryLoader: File details - Size: $size bytes, Permissions: $perms');
+          } catch (_) {
+            // Ignore stat errors
+          }
         }
 
+        Log.d('LibraryLoader: Attempting to load: $libPath');
         final lib = DynamicLibrary.open(libPath);
+        Log.i('LibraryLoader: ✓ Successfully loaded library from: $libPath');
         return Ok(lib);
       } catch (e) {
+        // Store the error for the first existing path
+        if (existingPaths.isNotEmpty && !loadErrors.containsKey(libPath)) {
+          Log.e('LibraryLoader: Failed to load $libPath - Error: $e');
+          loadErrors[libPath] = e;
+        }
         continue;
       }
     }
 
     // Build helpful error message
+    Log.e(
+        'LibraryLoader: Failed to load library after trying ${attemptedPaths.length} paths');
+
+    if (existingPaths.isNotEmpty) {
+      Log.w('LibraryLoader: Library file was found but could not be loaded');
+      for (final p in existingPaths) {
+        Log.w('  - Found at: $p');
+        if (loadErrors.containsKey(p)) {
+          Log.e('    Error: ${loadErrors[p]}');
+        }
+      }
+    } else {
+      Log.e('LibraryLoader: Library file not found in any search path');
+    }
+
     final errorMessage = StringBuffer();
     errorMessage.writeln('Failed to load native library for $platform');
     errorMessage.writeln('');
-    errorMessage.writeln(
-        'This usually means dart_db cannot find liboffline_first_core.${platform == 'linux' ? 'so' : 'dylib'}');
-    errorMessage.writeln('');
 
     if (existingPaths.isNotEmpty) {
-      errorMessage.writeln('⚠️  Found library at: ${existingPaths.first}');
-      errorMessage.writeln('   But failed to load it. Check file permissions:');
-      errorMessage.writeln('   chmod +x ${existingPaths.first}');
+      final firstPath = existingPaths.first;
+      errorMessage.writeln('✓ Library file found at:');
+      errorMessage.writeln('  $firstPath');
+      errorMessage.writeln('');
+
+      if (loadErrors.containsKey(firstPath)) {
+        errorMessage.writeln('✗ But failed to load it:');
+        errorMessage.writeln('  ${loadErrors[firstPath]}');
+        errorMessage.writeln('');
+      }
+
+      errorMessage.writeln('Possible solutions:');
+      errorMessage.writeln('');
+      errorMessage.writeln('1. Run diagnostic script:');
+      errorMessage.writeln('   cd ~/.pub-cache/git/dart_db-*/');
+      errorMessage.writeln('   bash scripts/diagnose_linux.sh');
+      errorMessage.writeln('');
+      errorMessage.writeln('2. Check file permissions:');
+      errorMessage.writeln('   chmod +x $firstPath');
+      errorMessage.writeln('');
+      errorMessage.writeln('3. Check for missing dependencies:');
+      errorMessage.writeln('   ldd $firstPath');
+      errorMessage.writeln('');
+      errorMessage.writeln('4. Install to system directory:');
+      errorMessage.writeln('   sudo cp $firstPath /usr/local/lib/');
+      errorMessage.writeln('   sudo ldconfig');
     } else {
+      errorMessage.writeln(
+          'This usually means dart_db cannot find liboffline_first_core.${platform == 'linux' ? 'so' : 'dylib'}');
+      errorMessage.writeln('');
       errorMessage.writeln(
           '💡 Quick fix: Run `dart pub get` to regenerate package configuration');
       errorMessage.writeln('');
@@ -434,10 +499,12 @@ class LibraryLoader {
   /// exact package locations.
   static List<String> _getPackagePathsFromConfig() {
     final paths = <String>[];
+    Log.d('LibraryLoader: Searching for package_config.json...');
 
     try {
       // Check in current directory
       var currentDir = Directory.current.path;
+      Log.d('LibraryLoader: Starting search from: $currentDir');
 
       // Try up to 3 parent directories
       for (var i = 0; i < 4; i++) {
@@ -445,19 +512,28 @@ class LibraryLoader {
             File(path.join(currentDir, '.dart_tool', 'package_config.json'));
 
         if (packageConfigFile.existsSync()) {
+          Log.i(
+              'LibraryLoader: Found package_config.json at: ${packageConfigFile.path}');
+
           try {
             final configContent = packageConfigFile.readAsStringSync();
             final config = jsonDecode(configContent) as Map<String, dynamic>;
 
             if (config.containsKey('packages')) {
               final packages = config['packages'] as List;
+              Log.d('LibraryLoader: Scanning ${packages.length} packages...');
 
               for (final package in packages) {
                 if (package is Map<String, dynamic> &&
                     package['name'] == 'dart_db') {
+                  Log.i('LibraryLoader: Found dart_db package in config');
+
                   // Extract package root path from rootUri
                   final rootUri = package['rootUri'] as String?;
                   final packageUri = package['packageUri'] as String?;
+
+                  Log.d(
+                      'LibraryLoader: rootUri: $rootUri, packageUri: $packageUri');
 
                   if (rootUri != null) {
                     String packageRootPath;
@@ -465,15 +541,21 @@ class LibraryLoader {
                     if (rootUri.startsWith('file://')) {
                       // Absolute file URI - convert to path
                       packageRootPath = Uri.parse(rootUri).toFilePath();
+                      Log.d(
+                          'LibraryLoader: Converted file:// URI to path: $packageRootPath');
                     } else if (rootUri.startsWith('../')) {
                       // Relative path from .dart_tool directory
                       final dartToolDir = path.join(currentDir, '.dart_tool');
                       packageRootPath =
                           path.normalize(path.join(dartToolDir, rootUri));
+                      Log.d(
+                          'LibraryLoader: Resolved relative path: $packageRootPath');
                     } else {
                       // Try to resolve as relative path from current directory
                       packageRootPath =
                           path.normalize(path.join(currentDir, rootUri));
+                      Log.d(
+                          'LibraryLoader: Resolved as relative from current dir: $packageRootPath');
                     }
 
                     // If packageUri is "lib/", rootUri points to package root
@@ -481,6 +563,8 @@ class LibraryLoader {
                     if (packageUri == 'lib/') {
                       // rootUri is already at package root
                       paths.add(packageRootPath);
+                      Log.i(
+                          'LibraryLoader: Added package root path: $packageRootPath');
                     } else {
                       // rootUri might be pointing to lib/ directory
                       // Check if it ends with /lib or /lib/
@@ -488,14 +572,19 @@ class LibraryLoader {
                           packageRootPath.endsWith('/lib/')) {
                         // Go up one level to package root
                         packageRootPath = path.dirname(packageRootPath);
+                        Log.d(
+                            'LibraryLoader: Adjusted to package root: $packageRootPath');
                       }
                       paths.add(packageRootPath);
+                      Log.i(
+                          'LibraryLoader: Added package path: $packageRootPath');
                     }
                   }
                 }
               }
             }
           } catch (e) {
+            Log.w('LibraryLoader: Error parsing package_config.json: $e');
             // Ignore JSON parsing errors - continue searching
           }
 
@@ -508,7 +597,15 @@ class LibraryLoader {
         if (parentDir == currentDir) break; // Reached root
         currentDir = parentDir;
       }
+
+      if (paths.isEmpty) {
+        Log.w('LibraryLoader: No dart_db package found in package_config.json');
+      } else {
+        Log.i(
+            'LibraryLoader: Found ${paths.length} package path(s) from config');
+      }
     } catch (e) {
+      Log.e('LibraryLoader: Error reading package_config.json: $e');
       // Ignore any errors in this method
     }
 

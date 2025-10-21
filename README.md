@@ -381,7 +381,23 @@ if (result.isOk) {
 
 If you see an error about "Failed to load native library", try these steps:
 
-**1. Run the debug tool** to see what's happening:
+**1. Run the diagnostic tool** on your Linux server:
+
+```bash
+# Find the dart_db package directory
+cd ~/.pub-cache/git/dart_db-*/
+
+# Run the diagnostic script
+bash scripts/diagnose_linux.sh
+```
+
+This will:
+- Check if the library file exists
+- Verify file permissions
+- Check for missing system dependencies
+- Provide specific fix commands for your situation
+
+**2. Or use the Dart debug tool** to see search paths:
 
 ```dart
 import 'package:dart_db/dart_db.dart';
@@ -392,21 +408,19 @@ void main() {
 }
 ```
 
-This will show you:
-- Where dart_db is searching for the library
-- Whether the library file exists
-- Your system configuration
-- Helpful suggestions
-
-**2. Quick fix** - Regenerate package configuration:
+**3. Quick fix** - If file exists but can't load:
 
 ```bash
-cd your_project
-dart pub get
+# Find the library
+LIBRARY=$(find ~/.pub-cache -name "liboffline_first_core.so" | head -1)
+
+# Copy to system directory
+sudo cp $LIBRARY /usr/local/lib/
+sudo ldconfig
 ```
 
-**3. Still not working?** See our comprehensive [TROUBLESHOOTING.md](TROUBLESHOOTING.md) guide for:
-- Manual installation options
+**4. Still not working?** See our comprehensive [TROUBLESHOOTING.md](TROUBLESHOOTING.md) guide for:
+- Missing dependencies solutions
 - Docker/container configuration
 - Platform-specific instructions
 - Advanced debugging
