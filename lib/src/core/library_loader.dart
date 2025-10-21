@@ -21,6 +21,7 @@
 // ║                                                                              ║
 // ╚══════════════════════════════════════════════════════════════════════════════╝
 
+import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
 import 'package:path/path.dart' as path;
@@ -66,6 +67,7 @@ class LibraryLoader {
     final libraryPaths =
         platform == 'linux' ? _getLinuxServerPaths() : _getMacOSServerPaths();
     final attemptedPaths = <String>[];
+    final existingPaths = <String>[];
 
     for (final libPath in libraryPaths) {
       attemptedPaths.add(libPath);
@@ -77,6 +79,7 @@ class LibraryLoader {
           if (!file.existsSync()) {
             continue;
           }
+          existingPaths.add(libPath);
         }
 
         final lib = DynamicLibrary.open(libPath);
@@ -86,10 +89,30 @@ class LibraryLoader {
       }
     }
 
+    // Build helpful error message
+    final errorMessage = StringBuffer();
+    errorMessage.writeln('Failed to load native library for $platform');
+    errorMessage.writeln('');
+    errorMessage.writeln(
+        'This usually means dart_db cannot find liboffline_first_core.${platform == 'linux' ? 'so' : 'dylib'}');
+    errorMessage.writeln('');
+
+    if (existingPaths.isNotEmpty) {
+      errorMessage.writeln('⚠️  Found library at: ${existingPaths.first}');
+      errorMessage.writeln('   But failed to load it. Check file permissions:');
+      errorMessage.writeln('   chmod +x ${existingPaths.first}');
+    } else {
+      errorMessage.writeln(
+          '💡 Quick fix: Run `dart pub get` to regenerate package configuration');
+      errorMessage.writeln('');
+      errorMessage.writeln(
+          '📝 For detailed solutions, see: https://github.com/jhonacodes/dart_db/blob/main/TROUBLESHOOTING.md');
+    }
+
     return Err(DbError.ffi(
-      'Failed to load native library for $platform',
+      errorMessage.toString(),
       context: 'Unix library loading',
-      cause: 'Attempted paths: ${attemptedPaths.join(', ')}',
+      cause: 'Attempted ${attemptedPaths.length} paths',
     ));
   }
 
@@ -312,7 +335,12 @@ class LibraryLoader {
   static List<String> _getPackageSearchPaths() {
     final paths = <String>[];
 
-    // Check for .pub-cache git repositories
+    // PRIORITY 1: Try to read package location from package_config.json
+    // This is the most reliable method as Dart maintains this file
+    final packageConfigPaths = _getPackagePathsFromConfig();
+    paths.addAll(packageConfigPaths);
+
+    // PRIORITY 2: Check for .pub-cache git repositories
     final homeDir = Platform.environment['HOME'] ??
         Platform.environment['USERPROFILE'] ??
         '';
@@ -322,15 +350,41 @@ class LibraryLoader {
 
       if (gitDir.existsSync()) {
         try {
-          // Look for dart_db-* directories
-          final entries = gitDir
-              .listSync()
-              .whereType<Directory>()
-              .where((dir) => path.basename(dir.path).startsWith('dart_db-'))
-              .toList();
+          // Look for ANY directory that might contain dart_db
+          // Not just dart_db-* but also variations
+          final entries = gitDir.listSync().whereType<Directory>().toList();
 
           for (final entry in entries) {
-            paths.add(entry.path);
+            final dirName = path.basename(entry.path);
+            // Check if directory name contains dart_db OR dart-db OR dartdb
+            if (dirName.contains('dart_db') ||
+                dirName.contains('dart-db') ||
+                dirName.contains('dartdb')) {
+              paths.add(entry.path);
+            }
+          }
+        } catch (e) {
+          // Ignore errors when scanning .pub-cache
+        }
+      }
+
+      // Also check hosted packages (pub.dev)
+      final pubCacheHosted = path.join(homeDir, '.pub-cache', 'hosted');
+      final hostedDir = Directory(pubCacheHosted);
+
+      if (hostedDir.existsSync()) {
+        try {
+          // Look in all pub.dev mirrors
+          for (final mirror in hostedDir.listSync().whereType<Directory>()) {
+            final dartDbDirs = mirror
+                .listSync()
+                .whereType<Directory>()
+                .where((dir) => path.basename(dir.path).startsWith('dart_db-'))
+                .toList();
+
+            for (final entry in dartDbDirs) {
+              paths.add(entry.path);
+            }
           }
         } catch (e) {
           // Ignore errors when scanning .pub-cache
@@ -338,7 +392,7 @@ class LibraryLoader {
       }
     }
 
-    // Check current directory for local development
+    // PRIORITY 3: Check current directory for local development
     final currentDir = Directory.current.path;
     final pubspecFile = File(path.join(currentDir, 'pubspec.yaml'));
 
@@ -353,19 +407,232 @@ class LibraryLoader {
       }
     }
 
+    // PRIORITY 4: Check parent directories (in case we're in a subdirectory)
+    var parentDir = path.dirname(currentDir);
+    for (var i = 0; i < 3; i++) {
+      final parentPubspec = File(path.join(parentDir, 'pubspec.yaml'));
+      if (parentPubspec.existsSync()) {
+        try {
+          final content = parentPubspec.readAsStringSync();
+          if (content.contains('name: dart_db')) {
+            paths.add(parentDir);
+            break;
+          }
+        } catch (e) {
+          // Ignore
+        }
+      }
+      parentDir = path.dirname(parentDir);
+    }
+
+    return paths;
+  }
+
+  /// Gets package paths by reading .dart_tool/package_config.json
+  ///
+  /// This is the most reliable method as Dart maintains this file with
+  /// exact package locations.
+  static List<String> _getPackagePathsFromConfig() {
+    final paths = <String>[];
+
+    try {
+      // Check in current directory
+      var currentDir = Directory.current.path;
+
+      // Try up to 3 parent directories
+      for (var i = 0; i < 4; i++) {
+        final packageConfigFile =
+            File(path.join(currentDir, '.dart_tool', 'package_config.json'));
+
+        if (packageConfigFile.existsSync()) {
+          try {
+            final configContent = packageConfigFile.readAsStringSync();
+            final config = jsonDecode(configContent) as Map<String, dynamic>;
+
+            if (config.containsKey('packages')) {
+              final packages = config['packages'] as List;
+
+              for (final package in packages) {
+                if (package is Map<String, dynamic> &&
+                    package['name'] == 'dart_db') {
+                  // Extract package root path from rootUri
+                  final rootUri = package['rootUri'] as String?;
+                  final packageUri = package['packageUri'] as String?;
+
+                  if (rootUri != null) {
+                    String packageRootPath;
+
+                    if (rootUri.startsWith('file://')) {
+                      // Absolute file URI - convert to path
+                      packageRootPath = Uri.parse(rootUri).toFilePath();
+                    } else if (rootUri.startsWith('../')) {
+                      // Relative path from .dart_tool directory
+                      final dartToolDir = path.join(currentDir, '.dart_tool');
+                      packageRootPath =
+                          path.normalize(path.join(dartToolDir, rootUri));
+                    } else {
+                      // Try to resolve as relative path from current directory
+                      packageRootPath =
+                          path.normalize(path.join(currentDir, rootUri));
+                    }
+
+                    // If packageUri is "lib/", rootUri points to package root
+                    // If not specified, we may need to go up one level
+                    if (packageUri == 'lib/') {
+                      // rootUri is already at package root
+                      paths.add(packageRootPath);
+                    } else {
+                      // rootUri might be pointing to lib/ directory
+                      // Check if it ends with /lib or /lib/
+                      if (packageRootPath.endsWith('/lib') ||
+                          packageRootPath.endsWith('/lib/')) {
+                        // Go up one level to package root
+                        packageRootPath = path.dirname(packageRootPath);
+                      }
+                      paths.add(packageRootPath);
+                    }
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            // Ignore JSON parsing errors - continue searching
+          }
+
+          // Found a package_config.json, don't search parent directories
+          break;
+        }
+
+        // Move to parent directory
+        final parentDir = path.dirname(currentDir);
+        if (parentDir == currentDir) break; // Reached root
+        currentDir = parentDir;
+      }
+    } catch (e) {
+      // Ignore any errors in this method
+    }
+
     return paths;
   }
 
   /// Gets information about the current environment for debugging
+  ///
+  /// Returns detailed information about the system environment and library
+  /// search paths. Useful for troubleshooting library loading issues.
+  ///
+  /// Example:
+  /// ```dart
+  /// final info = LibraryLoader.getEnvironmentInfo();
+  /// print('Platform: ${info['platform']}');
+  /// print('Working Directory: ${info['working_directory']}');
+  /// print('\nLibrary Search Paths:');
+  /// for (final path in info['library_search_paths']) {
+  ///   print('  - $path');
+  /// }
+  /// ```
   static Map<String, dynamic> getEnvironmentInfo() {
+    final platform = Platform.operatingSystem;
+    final searchPaths = platform == 'linux'
+        ? _getLinuxServerPaths()
+        : (platform == 'macos' ? _getMacOSServerPaths() : _getWindowsPaths());
+
+    // Check which paths actually exist
+    final existingPaths = <String>[];
+    for (final libPath in searchPaths) {
+      if (libPath.startsWith('/') || libPath.startsWith('./')) {
+        final file = File(libPath);
+        if (file.existsSync()) {
+          existingPaths.add(libPath);
+        }
+      }
+    }
+
     return {
-      'platform': Platform.operatingSystem,
+      'platform': platform,
       'version': Platform.operatingSystemVersion,
       'executable': Platform.resolvedExecutable,
       'working_directory': Directory.current.path,
+      'dart_tool_exists':
+          Directory(path.join(Directory.current.path, '.dart_tool'))
+              .existsSync(),
+      'package_config_exists': File(path.join(
+              Directory.current.path, '.dart_tool', 'package_config.json'))
+          .existsSync(),
       'LD_LIBRARY_PATH': Platform.environment['LD_LIBRARY_PATH'],
       'PATH': Platform.environment['PATH'],
       'HOME': Platform.environment['HOME'],
+      'library_search_paths': searchPaths,
+      'library_search_count': searchPaths.length,
+      'existing_library_paths': existingPaths,
+      'library_found': existingPaths.isNotEmpty,
+      'package_paths_from_config': _getPackagePathsFromConfig(),
     };
+  }
+
+  /// Prints debugging information about library loading
+  ///
+  /// This is a convenience method that prints formatted debugging information
+  /// to help troubleshoot library loading issues.
+  ///
+  /// Example:
+  /// ```dart
+  /// LibraryLoader.printDebugInfo();
+  /// ```
+  static void printDebugInfo() {
+    print('╔══════════════════════════════════════════════════════════════╗');
+    print('║           DART_DB LIBRARY LOADER DEBUG INFO                 ║');
+    print('╚══════════════════════════════════════════════════════════════╝');
+    print('');
+
+    final info = getEnvironmentInfo();
+
+    print('Platform Information:');
+    print('  Platform: ${info['platform']}');
+    print('  Version: ${info['version']}');
+    print('  Working Directory: ${info['working_directory']}');
+    print('  Dart Executable: ${info['executable']}');
+    print('');
+
+    print('Package Configuration:');
+    print('  .dart_tool exists: ${info['dart_tool_exists']}');
+    print('  package_config.json exists: ${info['package_config_exists']}');
+    print('');
+
+    final packagePaths = info['package_paths_from_config'] as List;
+    if (packagePaths.isNotEmpty) {
+      print('Package Paths from Config:');
+      for (final p in packagePaths) {
+        print('  ✓ $p');
+      }
+      print('');
+    }
+
+    print('Environment Variables:');
+    print('  HOME: ${info['HOME']}');
+    print('  LD_LIBRARY_PATH: ${info['LD_LIBRARY_PATH'] ?? '(not set)'}');
+    print('');
+
+    final existingPaths = info['existing_library_paths'] as List;
+    if (existingPaths.isNotEmpty) {
+      print('✓ Library Found at:');
+      for (final p in existingPaths) {
+        print('  $p');
+      }
+    } else {
+      print('✗ Library NOT Found');
+      print('');
+      print('Searched ${info['library_search_count']} paths:');
+      final searchPaths = info['library_search_paths'] as List;
+      final maxDisplay = 10;
+      for (var i = 0; i < searchPaths.length && i < maxDisplay; i++) {
+        print('  ${i + 1}. ${searchPaths[i]}');
+      }
+      if (searchPaths.length > maxDisplay) {
+        print('  ... and ${searchPaths.length - maxDisplay} more paths');
+      }
+    }
+
+    print('');
+    print('═══════════════════════════════════════════════════════════════');
   }
 }

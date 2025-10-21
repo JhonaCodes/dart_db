@@ -371,6 +371,46 @@ if (result.isOk) {
 - **Dependencies**: Native LMDB library via Rust - **INCLUDED!** ✅
 - **NOT for**: Mobile apps, Flutter apps, client-side applications
 
+## 🔧 Troubleshooting
+
+### Automatic Library Detection
+
+**dart_db** automatically detects and loads the native library from your package installation. In 99% of cases, it works out of the box with zero configuration.
+
+### If You Encounter Library Loading Issues
+
+If you see an error about "Failed to load native library", try these steps:
+
+**1. Run the debug tool** to see what's happening:
+
+```dart
+import 'package:dart_db/dart_db.dart';
+
+void main() {
+  // Print detailed diagnostic information
+  LibraryLoader.printDebugInfo();
+}
+```
+
+This will show you:
+- Where dart_db is searching for the library
+- Whether the library file exists
+- Your system configuration
+- Helpful suggestions
+
+**2. Quick fix** - Regenerate package configuration:
+
+```bash
+cd your_project
+dart pub get
+```
+
+**3. Still not working?** See our comprehensive [TROUBLESHOOTING.md](TROUBLESHOOTING.md) guide for:
+- Manual installation options
+- Docker/container configuration
+- Platform-specific instructions
+- Advanced debugging
+
 ## 🚀 Deployment
 
 ### Development

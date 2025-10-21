@@ -31,3 +31,4 @@ export 'src/models/db_error.dart';
 
 // Utilities
 export 'src/utils/server_path_helper.dart';
+export 'src/core/library_loader.dart' show LibraryLoader;
