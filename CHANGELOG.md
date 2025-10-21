@@ -9,7 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **🔍 Automatic library detection via `package_config.json`**: Zero-configuration setup - the library loader now automatically reads `.dart_tool/package_config.json` to find the exact location of the dart_db package
-- **📊 Comprehensive logging**: Added detailed logging throughout the library loading process using `Log.d()`, `Log.i()`, `Log.w()`, and `Log.e()` for better debugging visibility
+- **🔧 Automatic self-healing**: When library loading fails, dart_db now automatically attempts to fix the issue by:
+  - Correcting file permissions with `chmod +x`
+  - Installing the library to `/usr/local/lib/` (if running as root)
+  - Running `ldconfig` to update the system library cache
+  - Retrying library loading from the system path
+- **📊 Comprehensive logging**: Added detailed logging throughout the library loading process using `Log.d()`, `Log.i()`, `Log.w()`, and `Log.e()` for better debugging visibility, including detailed `[AUTO-FIX]` logs
 - **🛠️ Diagnostic tool (`LibraryLoader.printDebugInfo()`)**: New debugging utility that provides detailed information about library search paths, system configuration, and actionable troubleshooting recommendations
 - **📋 Debug example (`example/debug.dart`)**: Interactive diagnostic tool that helps users troubleshoot library loading issues
 - **🩺 Linux diagnostic script (`scripts/diagnose_linux.sh`)**: Comprehensive shell script that checks file permissions, verifies dependencies with `ldd`, tests library loading, and provides platform-specific fix commands

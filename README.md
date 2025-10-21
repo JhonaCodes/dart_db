@@ -373,11 +373,16 @@ if (result.isOk) {
 
 ## 🔧 Troubleshooting
 
-### Automatic Library Detection
+### Automatic Library Detection & Self-Healing
 
 **dart_db** automatically detects and loads the native library from your package installation. In 99% of cases, it works out of the box with zero configuration.
 
-### If You Encounter Library Loading Issues
+**NEW: Self-Healing Feature** - If library loading fails, dart_db automatically attempts to fix the issue by:
+- ✅ Correcting file permissions
+- ✅ Installing the library to system directories (when running as root)
+- ✅ Updating the system library cache
+
+### If You Still Encounter Library Loading Issues
 
 If you see an error about "Failed to load native library", try these steps:
 

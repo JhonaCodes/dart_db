@@ -116,6 +116,19 @@ class LibraryLoader {
       }
     }
 
+    // If we found the library but couldn't load it, try auto-fix
+    if (existingPaths.isNotEmpty && platform == 'linux') {
+      final firstPath = existingPaths.first;
+      Log.w(
+          'LibraryLoader: Library found but not loaded, attempting auto-fix...');
+
+      // Try auto-fix: fix permissions and install to system
+      final autoFixResult = _attemptAutoFix(firstPath);
+      if (autoFixResult.isOk) {
+        return autoFixResult;
+      }
+    }
+
     // Build helpful error message
     Log.e(
         'LibraryLoader: Failed to load library after trying ${attemptedPaths.length} paths');
@@ -148,21 +161,33 @@ class LibraryLoader {
         errorMessage.writeln('');
       }
 
-      errorMessage.writeln('Possible solutions:');
+      if (platform == 'linux') {
+        errorMessage.writeln(
+            'ℹ️  Auto-fix was attempted but did not resolve the issue.');
+        errorMessage.writeln('');
+      }
+
+      errorMessage.writeln('Most common causes:');
+      errorMessage.writeln('  • Missing system dependencies (most likely)');
+      errorMessage.writeln('  • Incorrect file permissions');
+      errorMessage.writeln('  • Architecture mismatch');
       errorMessage.writeln('');
-      errorMessage.writeln('1. Run diagnostic script:');
+      errorMessage.writeln('Recommended solutions:');
+      errorMessage.writeln('');
+      errorMessage.writeln('1. Check for missing dependencies:');
+      errorMessage.writeln('   ldd $firstPath');
+      errorMessage.writeln('   # Look for "not found" entries');
+      errorMessage.writeln('');
+      errorMessage.writeln('2. Install common dependencies:');
+      errorMessage.writeln('   # Ubuntu/Debian:');
+      errorMessage
+          .writeln('   sudo apt-get install -y libc6 libgcc-s1 libstdc++6');
+      errorMessage.writeln('   # Fedora/RHEL:');
+      errorMessage.writeln('   sudo yum install -y glibc libgcc libstdc++');
+      errorMessage.writeln('');
+      errorMessage.writeln('3. Run diagnostic script:');
       errorMessage.writeln('   cd ~/.pub-cache/git/dart_db-*/');
       errorMessage.writeln('   bash scripts/diagnose_linux.sh');
-      errorMessage.writeln('');
-      errorMessage.writeln('2. Check file permissions:');
-      errorMessage.writeln('   chmod +x $firstPath');
-      errorMessage.writeln('');
-      errorMessage.writeln('3. Check for missing dependencies:');
-      errorMessage.writeln('   ldd $firstPath');
-      errorMessage.writeln('');
-      errorMessage.writeln('4. Install to system directory:');
-      errorMessage.writeln('   sudo cp $firstPath /usr/local/lib/');
-      errorMessage.writeln('   sudo ldconfig');
     } else {
       errorMessage.writeln(
           'This usually means dart_db cannot find liboffline_first_core.${platform == 'linux' ? 'so' : 'dylib'}');
@@ -179,6 +204,112 @@ class LibraryLoader {
       context: 'Unix library loading',
       cause: 'Attempted ${attemptedPaths.length} paths',
     ));
+  }
+
+  /// Attempts to automatically fix library loading issues
+  ///
+  /// This method tries to:
+  /// 1. Fix file permissions
+  /// 2. Copy library to system directory (/usr/local/lib/)
+  /// 3. Run ldconfig
+  /// 4. Load from the new location
+  static DbResult<DynamicLibrary, DbError> _attemptAutoFix(String libPath) {
+    Log.i('LibraryLoader: [AUTO-FIX] Starting automatic fix for: $libPath');
+
+    // Step 1: Try to fix permissions
+    try {
+      Log.d('LibraryLoader: [AUTO-FIX] Attempting to fix file permissions...');
+      final chmodResult =
+          Process.runSync('chmod', ['+x', libPath], runInShell: true);
+
+      if (chmodResult.exitCode == 0) {
+        Log.i('LibraryLoader: [AUTO-FIX] ✓ Fixed file permissions');
+
+        // Try to load again
+        try {
+          Log.d(
+              'LibraryLoader: [AUTO-FIX] Retrying load after permission fix...');
+          final lib = DynamicLibrary.open(libPath);
+          Log.i(
+              'LibraryLoader: [AUTO-FIX] ✓ SUCCESS! Loaded after permission fix');
+          return Ok(lib);
+        } catch (e) {
+          Log.w(
+              'LibraryLoader: [AUTO-FIX] Permission fix did not resolve issue: $e');
+        }
+      }
+    } catch (e) {
+      Log.d('LibraryLoader: [AUTO-FIX] Could not fix permissions: $e');
+    }
+
+    // Step 2: Try to copy to system directory
+    try {
+      Log.i(
+          'LibraryLoader: [AUTO-FIX] Attempting to install to system directory...');
+
+      final systemPath = '/usr/local/lib/liboffline_first_core.so';
+
+      // Check if we have write permissions
+      final testWriteResult = Process.runSync(
+        'sh',
+        [
+          '-c',
+          'touch /usr/local/lib/.dart_db_test 2>/dev/null && rm /usr/local/lib/.dart_db_test'
+        ],
+        runInShell: true,
+      );
+
+      final hasPermissions = testWriteResult.exitCode == 0;
+
+      if (!hasPermissions) {
+        Log.w(
+            'LibraryLoader: [AUTO-FIX] No write permissions for /usr/local/lib/ (need root)');
+      }
+
+      // Try to copy (will work if running as root or with sudo)
+      Log.d('LibraryLoader: [AUTO-FIX] Copying to: $systemPath');
+      final copyResult =
+          Process.runSync('cp', [libPath, systemPath], runInShell: true);
+
+      if (copyResult.exitCode == 0) {
+        Log.i('LibraryLoader: [AUTO-FIX] ✓ Copied library to system directory');
+
+        // Fix permissions on the copied file
+        Process.runSync('chmod', ['755', systemPath], runInShell: true);
+
+        // Run ldconfig to update library cache
+        Log.d('LibraryLoader: [AUTO-FIX] Running ldconfig...');
+        final ldconfigResult =
+            Process.runSync('ldconfig', [], runInShell: true);
+
+        if (ldconfigResult.exitCode == 0) {
+          Log.i('LibraryLoader: [AUTO-FIX] ✓ Updated library cache');
+        }
+
+        // Try to load from system location
+        try {
+          Log.d(
+              'LibraryLoader: [AUTO-FIX] Attempting to load from system path...');
+          final lib = DynamicLibrary.open(systemPath);
+          Log.i(
+              'LibraryLoader: [AUTO-FIX] ✓ SUCCESS! Loaded from system directory');
+          Log.i(
+              'LibraryLoader: [AUTO-FIX] Library permanently installed to: $systemPath');
+          return Ok(lib);
+        } catch (e) {
+          Log.e(
+              'LibraryLoader: [AUTO-FIX] Failed to load from system path: $e');
+        }
+      } else {
+        Log.w(
+            'LibraryLoader: [AUTO-FIX] Could not copy to system directory: ${copyResult.stderr}');
+      }
+    } catch (e) {
+      Log.d('LibraryLoader: [AUTO-FIX] System install failed: $e');
+    }
+
+    Log.e('LibraryLoader: [AUTO-FIX] ✗ Auto-fix unsuccessful');
+    return Err(DbError.ffi('Auto-fix failed'));
   }
 
   /// Fallback loading for other platforms
