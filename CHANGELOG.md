@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-10-01
+
+### Added
+- Offline-first sync from db_dsl 0.2.4: tables declared with `syncWith`
+  record every write as a change in the same commit as the row, and
+  `db.sync` moves the changes to a server and its changes back (see db_dsl's
+  PROTOCOL.md, "Sync"). The conformance suite runs its sync cases on this
+  engine.
+
+### Changed
+- Native libraries of offline_first_core 0.7.5 and db_dsl `^0.2.4`.
+
 ## [0.3.3] - 2026-10-01
 
 ### Changed

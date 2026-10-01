@@ -88,6 +88,22 @@ from the `ConstraintError` of the insert.
 dart run example/server.dart
 ```
 
+## Offline-first sync
+
+`DartDb` is a db_dsl `Database`, so `db.sync` and tables declared with
+`syncWith` work here too: a server process that keeps a local replica of
+another service gets the same outbox written in the same commit as each
+row, acknowledged by mutation and revision, with conflicts kept instead of
+overwritten. The rules and every operation are in db_dsl's
+[PROTOCOL.md](https://github.com/JhonaCodes/db_dsl/blob/main/PROTOCOL.md)
+("Sync"), and the conformance suite checks them on this engine.
+
+```dart
+static final table = DbTable<Note>('notes', key: 'id', fromJson: Note.fromJson, syncWith: 'upstream');
+
+final batch = await db.sync.claim('upstream');      // leased envelopes to send
+```
+
 ## Deploy
 
 ```sh
