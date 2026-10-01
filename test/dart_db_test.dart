@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:dart_db/dart_db.dart';
 import 'package:test/test.dart';
@@ -60,6 +61,23 @@ void main() {
     await db.close();
   });
 
+  test('isolates of one process share the database', () async {
+    final db = await open();
+    final path = '${directory.path}/app';
+
+    // Each isolate opens the same path on its own native worker, and they
+    // write at the same time.
+    final written = await Future.wait([
+      for (var worker = 0; worker < 3; worker++)
+        Isolate.run(() => IsolateWriter.write(path, worker)),
+    ]);
+
+    expect(written, [100, 100, 100]);
+    expect(value(await notes.all().count()), 300, reason: 'seen here too');
+    expect(value(await notes.filter(author.eq('author-2')).count()), 100);
+    await db.close();
+  });
+
   test('concurrent handlers share one database', () async {
     final db = await open();
 
@@ -77,6 +95,36 @@ void main() {
     expect(value(await notes.all().count()), 50);
     await db.close();
   });
+}
+
+/// What one isolate of [IsolateWriter.write] does: opens the database at a
+/// path on its own and writes notes of its own.
+abstract final class IsolateWriter {
+  /// Opens [path], writes 100 notes with ids `worker * 1000 + i`, one
+  /// statement each, closes it and answers how many were written.
+  static Future<int> write(String path, int worker) async {
+    // A table of its own, defined as the main isolate defines it: statics
+    // and objects are per isolate.
+    final notes = DbTable<Note>(
+      'notes',
+      key: 'id',
+      fromJson: Note.fromJson,
+      indexes: [
+        Index(['author', 'year']),
+      ],
+    );
+    final db = value(await DartDb.open(path, tables: [notes]));
+    var written = 0;
+
+    for (var i = 0; i < 100; i++) {
+      written += value(
+        await notes.insert([Note(worker * 1000 + i, 'author-$worker', 2000)]),
+      );
+    }
+
+    value(await db.close());
+    return written;
+  }
 }
 
 /// The value of an `Ok`; fails the test on an `Err`.
