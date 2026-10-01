@@ -20,20 +20,10 @@ void main() {
       final directory = await Directory.systemTemp.createTemp('dart_db_exit');
       addTearDown(() => directory.delete(recursive: true));
 
-      final build = await Process.run(Platform.resolvedExecutable, [
-        'build',
-        'cli',
-        '-t',
+      final executable = await Bundle.build(
         'test/support/open_write_close.dart',
-        '-o',
-        '${directory.path}/build',
-      ]);
-      expect(build.exitCode, 0, reason: '${build.stdout}${build.stderr}');
-
-      // One executable: `open_write_close`, or `open_write_close.exe`.
-      final executable = Directory(
-        '${directory.path}/build/bundle/bin',
-      ).listSync().single.path;
+        directory,
+      );
 
       final process = await Process.start(executable, [
         '${directory.path}/app',
@@ -54,4 +44,47 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 3)),
   );
+
+  test(
+    'a bundle that only takes the addresses of the bindings resolves them',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('dart_db_aot');
+      addTearDown(() => directory.delete(recursive: true));
+
+      final executable = await Bundle.build(
+        'test/support/symbols_only.dart',
+        directory,
+      );
+      final run = await Process.run(executable, const []);
+
+      // Four non-zero addresses, not "Couldn't resolve native function".
+      expect(run.exitCode, 0, reason: '${run.stdout}${run.stderr}');
+      expect(
+        (run.stdout as String).trim().split(' ').map(int.parse),
+        everyElement(isNot(0)),
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
+}
+
+/// A support program compiled with `dart build cli`, as a CLI is deployed.
+abstract final class Bundle {
+  /// Compiles [target] into [directory] and answers its executable.
+  static Future<String> build(String target, Directory directory) async {
+    final build = await Process.run(Platform.resolvedExecutable, [
+      'build',
+      'cli',
+      '-t',
+      target,
+      '-o',
+      '${directory.path}/build',
+    ]);
+    expect(build.exitCode, 0, reason: '${build.stdout}${build.stderr}');
+
+    // One executable: `<name>`, or `<name>.exe` on Windows.
+    return Directory(
+      '${directory.path}/build/bundle/bin',
+    ).listSync().single.path;
+  }
 }

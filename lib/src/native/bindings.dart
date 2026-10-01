@@ -16,9 +16,17 @@ import 'package:ffi/ffi.dart';
 
 /// The C ABI of offline_first_core. Every returned string belongs to Rust and
 /// is released with [freeString], exactly once.
+///
+/// Why `@pragma('vm:entry-point')` on each function: they are only used
+/// through `Native.addressOf` (db_dsl's worker calls the addresses), and an
+/// ahead-of-time build (`dart build cli`) can drop how such a function
+/// resolves; its address then fails with "No asset with id 'String: null'"
+/// (seen on every platform for a program that only takes addresses, and on
+/// Windows for the server).
 abstract final class Bindings {
   /// `ofc_open(path, options, out)`: opens `<path>.lmdb`; writes the handle to
   /// `out` and returns the wire response.
+  @pragma('vm:entry-point')
   @Native<
     Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Pointer<Void>>)
   >(symbol: 'ofc_open')
@@ -29,6 +37,7 @@ abstract final class Bindings {
   );
 
   /// `ofc_execute(handle, request)`: runs one wire-protocol request.
+  @pragma('vm:entry-point')
   @Native<Pointer<Utf8> Function(Pointer<Void>, Pointer<Utf8>)>(
     symbol: 'ofc_execute',
   )
@@ -38,10 +47,12 @@ abstract final class Bindings {
   );
 
   /// `ofc_free_string(string)`: releases a returned string.
+  @pragma('vm:entry-point')
   @Native<Void Function(Pointer<Utf8>)>(symbol: 'ofc_free_string')
   external static void freeString(Pointer<Utf8> string);
 
   /// `close_database(handle)`: releases a handle.
+  @pragma('vm:entry-point')
   @Native<Pointer<Utf8> Function(Pointer<Void>)>(symbol: 'close_database')
   external static Pointer<Utf8> close(Pointer<Void> handle);
 }
