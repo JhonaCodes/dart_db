@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-10-01
+
+### Changed
+- Native libraries of offline_first_core 0.7.4: an `eqAny` on the primary
+  key or on the leading field of an index reads only the keys it names, so
+  `belongingTo` and `Relation` read only the neighbours of a row.
+- db_dsl `^0.2.3`: `Relation`, a many-to-many through a bridge table.
+
+### Added
+- A test that a relation's reads are an index range and primary key
+  lookups on the native engine, never a full scan.
+
 ## [0.3.2] - 2026-10-01
 
 Documentation, tests and a benchmark; no change in behaviour.
@@ -183,7 +195,8 @@ are not compatible: see "Migrating from 0.2" in the README.
 - Embedded analytics and data processing
 - High-performance key-value operations in pure Dart environments
 
-[Unreleased]: https://github.com/JhonaCodes/dart_db/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/JhonaCodes/dart_db/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/JhonaCodes/dart_db/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/JhonaCodes/dart_db/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/JhonaCodes/dart_db/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/JhonaCodes/dart_db/releases/tag/v0.3.0

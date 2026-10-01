@@ -78,6 +78,39 @@ void main() {
     await db.close();
   });
 
+  test('a relation reads only the neighbours of a row', () async {
+    final db = await open();
+    final related = Relation<Note, Note>('related', from: notes, to: notes);
+    value(
+      await notes.insert([for (var i = 0; i < 50; i++) Note(i, 'a', 2000)]),
+    );
+    value(
+      await related.attach(const Note(1, 'a', 2000), const Note(7, 'a', 2000)),
+    );
+    value(
+      await related.attach(const Note(1, 'a', 2000), const Note(3, 'a', 2000)),
+    );
+
+    expect(
+      value(await related.targetsOf(const Note(1, 'a', 2000))).map((n) => n.id),
+      [3, 7],
+    );
+
+    // The two reads of `targetsOf`: an index range on the bridge, then
+    // primary key lookups, never a full scan.
+    final links = value(
+      await related.links
+          .filter(related.links.field<Object>('from').eq(1))
+          .explain(),
+    );
+    expect((links.access, links.index), (PlanAccess.indexScan, 'by_from'));
+    final rows = value(
+      await notes.filter(notes.primaryKey.eqAny([3, 7])).explain(),
+    );
+    expect(rows.access, PlanAccess.primaryKeyLookup);
+    await db.close();
+  });
+
   test('concurrent handlers share one database', () async {
     final db = await open();
 
