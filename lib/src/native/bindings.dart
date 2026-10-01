@@ -4,12 +4,10 @@
 /// target platform, so no library is opened by path.
 ///
 /// Why every package that bundles the binary declares its own bindings: the
-/// asset id names the package whose hook provides the library, and it is
-/// fixed at compile time. db_dsl receives their addresses and does the rest.
-///
-/// Why an `assetId` on every function rather than a library
-/// `@DefaultAsset`: a `dart build cli` bundle on Windows looked the asset up
-/// as `null` with the library annotation, and could not open the database.
+/// asset id of `@DefaultAsset` names the package whose hook provides the
+/// library, and it is fixed at compile time. db_dsl receives their
+/// addresses and does the rest.
+@DefaultAsset('package:dart_db/src/native/bindings.dart')
 library;
 
 import 'dart:ffi';
@@ -19,14 +17,11 @@ import 'package:ffi/ffi.dart';
 /// The C ABI of offline_first_core. Every returned string belongs to Rust and
 /// is released with [freeString], exactly once.
 abstract final class Bindings {
-  /// The asset id of the library `hook/build.dart` bundles.
-  static const String asset = 'package:dart_db/src/native/bindings.dart';
-
   /// `ofc_open(path, options, out)`: opens `<path>.lmdb`; writes the handle to
   /// `out` and returns the wire response.
   @Native<
     Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Pointer<Void>>)
-  >(symbol: 'ofc_open', assetId: asset)
+  >(symbol: 'ofc_open')
   external static Pointer<Utf8> open(
     Pointer<Utf8> path,
     Pointer<Utf8> options,
@@ -36,7 +31,6 @@ abstract final class Bindings {
   /// `ofc_execute(handle, request)`: runs one wire-protocol request.
   @Native<Pointer<Utf8> Function(Pointer<Void>, Pointer<Utf8>)>(
     symbol: 'ofc_execute',
-    assetId: asset,
   )
   external static Pointer<Utf8> execute(
     Pointer<Void> handle,
@@ -44,16 +38,10 @@ abstract final class Bindings {
   );
 
   /// `ofc_free_string(string)`: releases a returned string.
-  @Native<Void Function(Pointer<Utf8>)>(
-    symbol: 'ofc_free_string',
-    assetId: asset,
-  )
+  @Native<Void Function(Pointer<Utf8>)>(symbol: 'ofc_free_string')
   external static void freeString(Pointer<Utf8> string);
 
   /// `close_database(handle)`: releases a handle.
-  @Native<Pointer<Utf8> Function(Pointer<Void>)>(
-    symbol: 'close_database',
-    assetId: asset,
-  )
+  @Native<Pointer<Utf8> Function(Pointer<Void>)>(symbol: 'close_database')
   external static Pointer<Utf8> close(Pointer<Void> handle);
 }
