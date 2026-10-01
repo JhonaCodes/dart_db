@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-10-01
+
+### Fixed
+- Native libraries of offline_first_core 0.7.6:
+  - The memory map grows ahead of the writes, so a transaction meets `mapFull` only when it alone writes more than half of the map.
+  - `db.sync` claims and acknowledges in constant time whatever the backlog.
+- db_dsl `^0.2.6`.
+
 ## [0.3.4] - 2026-10-01
 
 ### Added
