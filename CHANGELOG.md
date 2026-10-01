@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-10-02
+
+### Changed
+- The engine runs on the C ABI v2 of offline_first_core: `u64` handles the library validates, and requests as bytes with a length. The conformance suite runs on both ABIs. db_dsl `^0.2.7`.
+
 ## [0.3.5] - 2026-10-01
 
 ### Fixed
