@@ -1,0 +1,16 @@
+name: dart_db_benchmark
+description: "Server benchmark of dart_db against sqlite3, Hive CE and Sembast, built with dart build cli."
+publish_to: none
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  dart_db:
+    path: ../
+  hive_ce: ^2.20.1
+  sembast: ^3.8.11
+  sqlite3: ^3.7.0
+
+dev_dependencies:
+  lints: ^6.0.0

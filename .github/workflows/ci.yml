@@ -20,7 +20,11 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
-      - run: dart pub get
+      # The package and the benchmark: the root analysis covers both.
+      - run: |
+          dart pub get
+          dart pub get --directory benchmark
+        shell: bash
       - run: dart format --output=none --set-exit-if-changed .
       - run: dart analyze --fatal-infos
       # The build hook bundles the native library of the runner's platform:

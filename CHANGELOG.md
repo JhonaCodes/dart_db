@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-01
+
+Documentation, tests and a benchmark; no change in behaviour.
+
+### Added
+- `benchmark/`: dart_db against SQLite, Hive CE and Sembast in a
+  `dart build cli` bundle, including lookups from 4 isolates at once; the
+  results and how to read them are in the README.
+- A test with three isolates writing the same database at once.
+
+### Changed
+- README: every isolate that uses the database gets a worker isolate of its
+  own, and all of them share the process's one LMDB environment (it said
+  one worker per process).
+
 ## [0.3.1] - 2026-10-01
 
 Documentation; no change in behaviour.
@@ -168,6 +183,7 @@ are not compatible: see "Migrating from 0.2" in the README.
 - Embedded analytics and data processing
 - High-performance key-value operations in pure Dart environments
 
-[Unreleased]: https://github.com/JhonaCodes/dart_db/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/JhonaCodes/dart_db/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/JhonaCodes/dart_db/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/JhonaCodes/dart_db/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/JhonaCodes/dart_db/releases/tag/v0.3.0

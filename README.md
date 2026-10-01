@@ -115,7 +115,7 @@ Alpine (musl), and keep the database directory on a volume.
 request handlers ── await notes.filter(…) ──► db_dsl: JSON request (protocol v1)
                                                    │
                                                    ▼
-                                db_dsl's worker isolate (one per process)
+                                db_dsl's worker isolate (one per isolate that uses it)
                                                    │  dart:ffi (@Native)
                                                    ▼
                                 offline_first_core (Rust): planner, indexes,
@@ -134,7 +134,10 @@ request handlers ── await notes.filter(…) ──► db_dsl: JSON request (
   an ahead-of-time build keeps them.
 - **Concurrent handlers share one database.** Writes queue in Dart (one
   writer at a time); reads are not queued behind them. Every native call
-  runs on one worker isolate, so a handler never blocks on the disk.
+  runs on a worker isolate, so a handler never blocks on the disk.
+- **Several isolates can open the same path.** Each gets a worker isolate
+  of its own, and all of them share the process's one LMDB environment, so
+  they see each other's commits.
 - **A program ends by itself** once its databases are closed: the worker
   isolate stops with the last one.
 
@@ -166,6 +169,37 @@ await DartDb.open('data/app', options: const DbOptions(durability: Durability.no
 flushes once and may undo the last transaction after a power loss, never
 corrupting the database; `noSync` leaves flushing to the operating system.
 The file grows as needed up to `maxSize` (16 GiB by default).
+
+## Benchmarks
+
+Measured from Dart in a `dart build cli` bundle: 10 000 rows with an index
+on `(city, age)`, median of 3 rounds, on an Apple M1 Max, macOS 26.7, Dart
+3.13.4. Rows are grouped by what a commit guarantees.
+
+| Engine | Durability | Runs on | Insert 10k rows, 1 transaction (per row) | Insert, 1 transaction per row | Find by primary key | Find by primary key, 4 isolates at once | Indexed query, limit 50 | Indexed count | Update by key |
+|---|---|---|---|---|---|---|---|---|---|
+| dart_db 0.3 (full) | data and metadata flushed per commit | database isolate | 6.0 µs | 9.09 ms | 18.4 µs | 14.4 µs | 83.0 µs | 47.5 µs | 9.05 ms |
+| SQLite 3.53.4 (synchronous=FULL) | WAL flushed per commit (fullfsync on Apple) | calling isolate | 2.3 µs | 4.79 ms | 2.9 µs | 1.8 µs | 37.0 µs | 48.7 µs | 4.93 ms |
+| dart_db 0.3 (no_meta_sync) | data flushed per commit | database isolate | 5.9 µs | 4.67 ms | 17.8 µs | 15.9 µs | 80.3 µs | 46.3 µs | 5.16 ms |
+| dart_db 0.3 (no_sync) | no flush per commit | database isolate | 5.1 µs | 39.2 µs | 17.9 µs | 14.2 µs | 82.4 µs | 48.7 µs | 43.4 µs |
+| SQLite 3.53.4 (synchronous=OFF) | no flush per commit (WAL) | calling isolate | 1.6 µs | 25.0 µs | 3.0 µs | 1.6 µs | 35.9 µs | 47.7 µs | 25.2 µs |
+| Hive CE 2 | no flush per write | calling isolate | 2.3 µs | 20.1 µs | 0.3 µs | n/a | 16.5 µs | 467.5 µs | 22.5 µs |
+| Sembast 3 | no flush per write | calling isolate | 21.1 µs | 87.4 µs | 1.1 µs | n/a | 60.4 µs | 1.24 ms | 102.0 µs |
+
+How to read it:
+
+- **Every dart_db call crosses to its worker isolate**, which costs a round
+  trip of about 15 µs: a lookup by key is slower than SQLite on the calling
+  isolate, and in exchange a slow query or a durable commit never blocks
+  the isolate that serves the request.
+- **A durable commit is about twice SQLite's**: LMDB flushes the data and
+  then the metadata page. `noMetaSync` flushes once and matches it.
+- **Reads from several isolates do not scale linearly yet**: 4 isolates
+  reading at once take 14 µs per lookup against 18 µs from one.
+- Hive CE and Sembast keep every row in memory: lookups are fast, and
+  counts scan every row.
+
+Reproduce with the commands in [benchmark/README.md](benchmark/README.md).
 
 ## Migrating from 0.2
 
