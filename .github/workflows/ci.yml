@@ -42,3 +42,21 @@ jobs:
       - run: dart pub get
       - name: Compile the example server with its native library
         run: dart build cli -t example/server.dart -o build/server
+      # Compiling is not deploying: run the bundle and query it.
+      - name: Run the compiled server and query it
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Windows) server=build/server/bundle/bin/server.exe ;;
+            *) server=build/server/bundle/bin/server ;;
+          esac
+          "$server" "$RUNNER_TEMP/notes" > server.log 2>&1 &
+          trap 'kill %1 2>/dev/null || true; echo "--- server log"; cat server.log' EXIT
+          for _ in $(seq 1 30); do
+            curl -s -o /dev/null http://localhost:8080/notes && break
+            sleep 1
+          done
+          curl -sf -X POST http://localhost:8080/notes -d '{"id":1,"author":"ada","text":"bundled"}'
+          echo
+          test "$(curl -sf 'http://localhost:8080/notes?author=ada')" = '[{"id":1,"author":"ada","text":"bundled"}]'
+          echo "The bundled server answered."
