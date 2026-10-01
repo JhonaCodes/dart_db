@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Analyze and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - run: dart pub get
+      - run: dart format --output=none --set-exit-if-changed .
+      - run: dart analyze --fatal-infos
+      # The build hook bundles the native library of the runner's platform:
+      # the conformance suite runs against the real engine.
+      - run: dart test
+
+  server-bundle:
+    name: Server bundle (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - run: dart pub get
+      - name: Compile the example server with its native library
+        run: dart build cli -t example/server.dart -o build/server
+      # Compiling is not deploying: run the bundle and query it.
+      - name: Run the compiled server and query it
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Windows) server=build/server/bundle/bin/server.exe ;;
+            *) server=build/server/bundle/bin/server ;;
+          esac
+          "$server" "$RUNNER_TEMP/notes" > server.log 2>&1 &
+          trap 'kill %1 2>/dev/null || true; echo "--- server log"; cat server.log' EXIT
+          for _ in $(seq 1 30); do
+            curl -s -o /dev/null http://localhost:8080/notes && break
+            sleep 1
+          done
+          curl -sf -X POST http://localhost:8080/notes -d '{"id":1,"author":"ada","text":"bundled"}'
+          echo
+          test "$(curl -sf 'http://localhost:8080/notes?author=ada')" = '[{"id":1,"author":"ada","text":"bundled"}]'
+          echo "The bundled server answered."
