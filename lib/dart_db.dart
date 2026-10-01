@@ -1,33 +1,10 @@
-// ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║                              DART DB                                         ║
-// ║              High-Performance Embedded Database for Dart Backend             ║
-// ║══════════════════════════════════════════════════════════════════════════════║
-// ║                                                                              ║
-// ║  Author: JhonaCode (Jhonatan Ortiz)                                         ║
-// ║  Contact: info@jhonacode.com                                                 ║
-// ║  Purpose: Pure Dart embedded database for backend applications              ║
-// ║                                                                              ║
-// ║  Description:                                                                ║
-// ║    A high-performance embedded key-value database built specifically        ║
-// ║    for Dart backend applications. Uses LMDB + Rust via FFI for blazing     ║
-// ║    fast performance while maintaining a clean, simple Dart API.            ║
-// ║                                                                              ║
-// ║  Features:                                                                   ║
-// ║    • Instance-based API (no singletons)                                     ║
-// ║    • Type-safe operations with Result<T,E>                                  ║
-// ║    • Linux-optimized for server environments                                ║
-// ║    • Perfect for caches, sessions, config, and more                        ║
-// ║                                                                              ║
-// ╚══════════════════════════════════════════════════════════════════════════════╝
-
+/// dart_db: the db_dsl query language on the offline_first_core engine
+/// (Rust + LMDB 1.0), for Dart servers on Linux, macOS and Windows.
+///
+/// Everything of db_dsl is exported: tables, columns, expressions, queries,
+/// transactions, `Result` with `Ok` and `Err`, and [DbError].
 library;
 
-// Core API
-export 'src/db.dart';
+export 'package:db_dsl/db_dsl.dart';
 
-// Models
-export 'src/models/db_result.dart';
-export 'src/models/db_error.dart';
-
-// Utilities
-export 'src/utils/server_path_helper.dart';
+export 'src/dart_db.dart';

@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0]
+
+A new database: tables from your own models with Diesel-style queries
+([db_dsl](https://pub.dev/packages/db_dsl), re-exported), on
+offline_first_core and LMDB 1.0.2. The files and the key-value API of 0.2
+are not compatible: see "Migrating from 0.2" in the README.
+
+### Added
+- `DartDb.open(path)`: tables carried by the models themselves
+  (`static final table = DbTable<Note>('notes', key: 'id', fromJson:
+  Note.fromJson)`), defined on the database the first time they are used
+  (`tables:` defines them up front), with secondary indexes, filters,
+  ordering, limits, aggregates, `groupBy` with `having`, joins, transactions
+  with savepoints, read snapshots, `atomicBatch`, `watch` and `explain`.
+- Typed fields (`notes.author.eq('ada')`) through an
+  `extension NoteFields on DbTable<Note>` that the
+  [db_dsl_lints](https://pub.dev/packages/db_dsl_lints) analyzer plugin
+  writes from the model and checks.
+- Queries run when awaited, and every call answers a `Result` with a typed
+  `DbError`.
+- A build hook bundles the native library for Linux, macOS and Windows on
+  x64 and arm64; `dart build cli` ships it next to the executable.
+- `example/server.dart`: a small HTTP API on dart_db.
+- `tool/update_native.sh`: replaces the bundled libraries with those of an
+  offline_first_core release.
+
+### Changed
+- Every call runs on a database isolate, so request handlers never block on
+  the disk; a program that closes its databases ends by itself.
+
+### Removed
+- The key-value `DB` class of 0.2 (`open`, `post`, `put`, `patch`, `get`,
+  `delete`, `exists`, `keys`, `all`, `clear`), `DbResult` and `DbError` of
+  0.2: tables and db_dsl's `Result` / `DbError` replace them.
+- Support for files written by 0.2 (LMDB 0.9): opening them answers
+  `DbErrorCode.legacyFormat`.
+
 ## [0.2.0] - 2025-08-27
 
 ### 🎉 Major Simplification & Server Focus
