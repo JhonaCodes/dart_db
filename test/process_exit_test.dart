@@ -8,6 +8,11 @@ import 'package:test/test.dart';
 
 /// A program that closes its databases ends: the worker isolate of the
 /// native engine does not keep it alive.
+///
+/// The program is compiled with `dart build cli`, as a CLI is deployed, and
+/// run from its bundle. Why not `dart run`: it relinks the native library in
+/// `.dart_tool/lib`, which this test process has loaded, and Windows refuses
+/// to replace a loaded library.
 void main() {
   test(
     'a program that opens, writes and closes its database ends by itself',
@@ -15,9 +20,22 @@ void main() {
       final directory = await Directory.systemTemp.createTemp('dart_db_exit');
       addTearDown(() => directory.delete(recursive: true));
 
-      final process = await Process.start(Platform.resolvedExecutable, [
-        'run',
+      final build = await Process.run(Platform.resolvedExecutable, [
+        'build',
+        'cli',
+        '-t',
         'test/support/open_write_close.dart',
+        '-o',
+        '${directory.path}/build',
+      ]);
+      expect(build.exitCode, 0, reason: '${build.stdout}${build.stderr}');
+
+      // One executable: `open_write_close`, or `open_write_close.exe`.
+      final executable = Directory(
+        '${directory.path}/build/bundle/bin',
+      ).listSync().single.path;
+
+      final process = await Process.start(executable, [
         '${directory.path}/app',
       ]);
       final output = StringBuffer();
