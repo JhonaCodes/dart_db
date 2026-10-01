@@ -109,6 +109,53 @@ migration scripts need no `exit()`.
 In Docker, use a glibc base image (such as `debian:bookworm-slim`), not
 Alpine (musl), and keep the database directory on a volume.
 
+## How it works
+
+```
+request handlers ── await notes.filter(…) ──► db_dsl: JSON request (protocol v1)
+                                                   │
+                                                   ▼
+                                db_dsl's worker isolate (one per process)
+                                                   │  dart:ffi (@Native)
+                                                   ▼
+                                offline_first_core (Rust): planner, indexes,
+                                transactions
+                                                   │
+                                                   ▼
+                                LMDB 1.0.2: <path>.lmdb
+```
+
+- `DartDb` is a db_dsl `Database` on the bundled engine: everything db_dsl
+  documents applies as is.
+- **The native library comes with the package.** `hook/build.dart` picks
+  `native/<os>/<architecture>/` for the build target. `dart run` and
+  `dart test` link it into `.dart_tool/lib`; `dart build cli` copies it to
+  `bundle/lib/`, next to the executable. The bindings are entry points, so
+  an ahead-of-time build keeps them.
+- **Concurrent handlers share one database.** Writes queue in Dart (one
+  writer at a time); reads are not queued behind them. Every native call
+  runs on one worker isolate, so a handler never blocks on the disk.
+- **A program ends by itself** once its databases are closed: the worker
+  isolate stops with the last one.
+
+## Using it well
+
+- **Open each path once, at start-up, and share the `DartDb`** across
+  handlers; close it when the process stops.
+- **Deploy a `dart build cli` bundle**: copy the whole `bundle/` directory,
+  on a glibc system for Linux.
+- **One transaction per request that writes several rows**: a durable
+  commit flushes the disk.
+- **Index what you filter and order by**, and check it with `explain()`.
+- **Use a table once before its first transaction**, or list it in
+  `DartDb.open(path, tables: [...])`.
+- **Enable db_dsl_lints and run `dart analyze` in CI**, so the typed fields
+  stay in step with the models.
+- **On Windows, do not start two `dart run` of the same project at once**:
+  each one replaces the library in `.dart_tool/lib` while the other has it
+  loaded ([dart-lang/sdk#63933](https://github.com/dart-lang/sdk/issues/63933)).
+  Compiled bundles run side by side.
+
 ## Durability
 
 ```dart

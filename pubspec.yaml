@@ -1,6 +1,6 @@
 name: dart_db
 description: "Embedded database for Dart servers: tables from your own models, Diesel-style queries, joins and transactions (db_dsl) on Rust and LMDB 1.0, for Linux, macOS and Windows."
-version: 0.3.0
+version: 0.3.1
 repository: https://github.com/JhonaCodes/dart_db
 issue_tracker: https://github.com/JhonaCodes/dart_db/issues
 

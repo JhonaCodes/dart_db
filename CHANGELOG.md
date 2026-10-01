@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.3.0]
+## [0.3.1] - 2026-10-01
+
+Documentation; no change in behaviour.
+
+### Changed
+- README: "How it works" (the path of a query from a handler to LMDB, the
+  bundled library in `dart run` and in a `dart build cli` bundle,
+  concurrent handlers, a program that ends by itself) and "Using it well",
+  with the Windows note on concurrent `dart run` (dart-lang/sdk#63933).
+- 0.3.0 already keeps the bindings in ahead-of-time builds: the server
+  bundle runs on Linux, macOS and Windows, checked in CI.
+
+## [0.3.0] - 2026-10-01
 
 A new database: tables from your own models with Diesel-style queries
 ([db_dsl](https://pub.dev/packages/db_dsl), re-exported), on
@@ -156,5 +168,6 @@ are not compatible: see "Migrating from 0.2" in the README.
 - Embedded analytics and data processing
 - High-performance key-value operations in pure Dart environments
 
-[Unreleased]: https://github.com/jhonacodes/dart_db/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/jhonacodes/dart_db/releases/tag/v0.1.0
+[Unreleased]: https://github.com/JhonaCodes/dart_db/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/JhonaCodes/dart_db/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/JhonaCodes/dart_db/releases/tag/v0.3.0
